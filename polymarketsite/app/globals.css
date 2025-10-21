@@ -1,0 +1,162 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --radius: 0;
+    color-scheme: light;
+    --background: 255 255 255;
+    --foreground: 11 11 11;
+    --card: 245 245 245;
+    --card-foreground: 11 11 11;
+    --popover: 255 255 255;
+    --popover-foreground: 11 11 11;
+    --primary: 43 143 223;
+    --primary-foreground: 255 255 255;
+    --secondary: 229 229 229;
+    --secondary-foreground: 11 11 11;
+    --muted: 245 245 245;
+    --muted-foreground: 115 115 115;
+    --accent: 229 229 229;
+    --accent-foreground: 11 11 11;
+    --destructive: 220 38 38;
+    --destructive-foreground: 255 255 255;
+    --success: 0 255 156;
+    --success-foreground: 11 11 11;
+    --buy: 0 255 156;
+    --sell: 255 60 60;
+    --neutral: 85 175 255;
+    --border: 229 229 229;
+    --input: 245 245 245;
+    --ring: 43 143 223;
+
+    /* UI scale tokens (readability at 100% zoom) */
+    --text-2xs: 12px; /* used to normalize text-[11px] */
+    --text-3xs: 11px; /* used to normalize text-[10px] */
+
+    /* Control paddings (shared by tiny buttons/inputs) */
+    --control-xs-x: 0.5rem;
+    --control-xs-y: 0.25rem;
+    --control-sm-x: 0.65rem;
+    --control-sm-y: 0.35rem;
+  }
+
+  .dark {
+    color-scheme: dark;
+    --background: 11 11 11;
+    --foreground: 234 234 234;
+    --card: 18 18 18;
+    --card-foreground: 234 234 234;
+    --popover: 18 18 18;
+    --popover-foreground: 234 234 234;
+    --primary: 85 175 255;
+    --primary-foreground: 11 11 11;
+    --secondary: 30 30 30;
+    --secondary-foreground: 234 234 234;
+    --muted: 30 30 30;
+    --muted-foreground: 139 139 139;
+    --accent: 30 30 30;
+    --accent-foreground: 234 234 234;
+    --destructive: 255 60 60;
+    --destructive-foreground: 234 234 234;
+    --success: 0 255 156;
+    --success-foreground: 11 11 11;
+    --buy: 0 255 156;
+    --sell: 255 60 60;
+    --neutral: 85 175 255;
+    --border: 42 42 42;
+    --input: 30 30 30;
+    --ring: 85 175 255;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+    border-radius: 0 !important;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings:
+      "rlig" 1,
+      "calt" 1;
+  }
+}
+
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .thin-border {
+    border-width: 1px;
+  }
+
+  .panel {
+    @apply bg-card border border-border p-4;
+  }
+
+  .text-buy {
+    color: rgb(var(--buy));
+  }
+
+  .text-sell {
+    color: rgb(var(--sell));
+  }
+
+  .text-neutral {
+    color: rgb(var(--neutral));
+  }
+
+  .bg-buy {
+    background-color: rgb(var(--buy));
+  }
+
+  .bg-sell {
+    background-color: rgb(var(--sell));
+  }
+
+  .bg-neutral {
+    background-color: rgb(var(--neutral));
+  }
+
+  /* Typography normalization (applies site-wide to existing utilities) */
+  .text-\[11px\] {
+    font-size: var(--text-2xs) !important;
+    line-height: 1.25;
+  }
+  .text-\[10px\] {
+    font-size: var(--text-3xs) !important;
+    line-height: 1.2;
+  }
+
+  /* Button and control sizing helpers (opt-in) */
+  .btn-xs {
+    font-size: var(--text-2xs);
+    line-height: 1.2;
+    padding: var(--control-xs-y) var(--control-xs-x);
+  }
+  .btn-sm {
+    font-size: 12.5px;
+    line-height: 1.3;
+    padding: var(--control-sm-y) var(--control-sm-x);
+  }
+  .control-xs {
+    padding: var(--control-xs-y) var(--control-xs-x);
+  }
+  .control-sm {
+    padding: var(--control-sm-y) var(--control-sm-x);
+  }
+
+  /* Slightly tighter panels on smaller screens to balance density */
+  @media (max-width: 1024px) {
+    .panel {
+      padding: 0.75rem;
+    }
+  }
+}

@@ -1,0 +1,98 @@
+
+> polymarketsite@0.1.0 dev
+> next dev -p 3001
+
+   ▲ Next.js 15.0.2
+   - Local:        http://localhost:3001
+   - Environments: .env.local
+
+ ✓ Starting...
+ ✓ Ready in 1274ms
+ ○ Compiling / ...
+ ✓ Compiled / in 4.8s (1454 modules)
+ GET / 200 in 5338ms
+ ✓ Compiled in 550ms (681 modules)
+ ○ Compiling /api/gamma/events ...
+ ✓ Compiled /api/gamma/events in 2.6s (1439 modules)
+[API] Proxying request to: https://gamma-api.polymarket.com/events?limit=20&offset=0&order=volume&ascending=false&closed=false&archived=false&active=true
+[API] Successfully fetched 20 events
+ GET /api/gamma/events?limit=20&offset=0&order=volume&ascending=false&closed=false&archived=false&active=true 200 in 2859ms
+[API] Proxying request to: https://gamma-api.polymarket.com/events?limit=20&offset=0&order=volume&ascending=false&closed=false&archived=false&active=true
+[API] Successfully fetched 20 events
+ GET /api/gamma/events?limit=20&offset=0&order=volume&ascending=false&closed=false&archived=false&active=true 200 in 465ms
+ ✓ Compiled in 873ms (1423 modules)
+ ✓ Compiled in 359ms (1423 modules)
+ ✓ Compiled in 191ms (1423 modules)
+ GET / 200 in 429ms
+ ✓ Compiled /api/gamma/events in 148ms (771 modules)
+[API] Proxying request to: https://gamma-api.polymarket.com/events?limit=20&offset=0&order=volume&ascending=false&closed=false&archived=false&active=true
+[API] Successfully fetched 20 events
+ GET /api/gamma/events?limit=20&offset=0&order=volume&ascending=false&closed=false&archived=false&active=true 200 in 584ms
+[API] Proxying request to: https://gamma-api.polymarket.com/events?limit=20&offset=0&order=volume&ascending=false&closed=false&archived=false&active=true
+[API] Successfully fetched 20 events
+ GET /api/gamma/events?limit=20&offset=0&order=volume&ascending=false&closed=false&archived=false&active=true 200 in 389ms
+[API] Proxying request to: https://gamma-api.polymarket.com/events?limit=20&offset=0&order=volume&ascending=false&closed=false&archived=false&active=true
+[API] Successfully fetched 20 events
+ GET /api/gamma/events?limit=20&offset=0&order=volume&ascending=false&closed=false&archived=false&active=true 200 in 574ms
+[API] Proxying request to: https://gamma-api.polymarket.com/events?limit=20&offset=0&order=volume&ascending=false&closed=false&archived=false&active=true
+[API] Successfully fetched 20 events
+ GET /api/gamma/events?limit=20&offset=0&order=volume&ascending=false&closed=false&archived=false&active=true 200 in 318ms
+[API] Proxying request to: https://gamma-api.polymarket.com/events?limit=20&offset=0&order=volume&ascending=false&closed=false&archived=false&active=true
+[API] Successfully fetched 20 events
+ GET /api/gamma/events?limit=20&offset=0&order=volume&ascending=false&closed=false&archived=false&active=true 200 in 292ms
+[API] Proxying request to: https://gamma-api.polymarket.com/events?limit=20&offset=0&order=volume&ascending=false&closed=false&archived=false&active=true
+ GET /api/gamma/events?limit=20&offset=0&order=volume&ascending=false&closed=false&archived=false&active=true 200 in 46ms
+[API] Successfully fetched 20 events
+[API] Proxying request to: https://gamma-api.polymarket.com/events?limit=20&offset=0&order=volume&ascending=false&closed=false&archived=false&active=true
+[API] Successfully fetched 20 events
+ GET /api/gamma/events?limit=20&offset=0&order=volume&ascending=false&closed=false&archived=false&active=true 200 in 244ms
+[API] Proxying request to: https://gamma-api.polymarket.com/events?limit=20&offset=0&order=volume&ascending=false&closed=false&archived=false&active=true
+[API] Successfully fetched 20 events
+ GET /api/gamma/events?limit=20&offset=0&order=volume&ascending=false&closed=false&archived=false&active=true 200 in 304ms
+[API] Proxying request to: https://gamma-api.polymarket.com/events?limit=20&offset=0&order=volume&ascending=false&closed=false&archived=false&active=true
+[API] Successfully fetched 20 events
+ GET /api/gamma/events?limit=20&offset=0&order=volume&ascending=false&closed=false&archived=false&active=true 200 in 389ms
+[API] Proxying request to: https://gamma-api.polymarket.com/events?limit=20&offset=0&order=volume&ascending=false&closed=false&archived=false&active=true
+[API] Successfully fetched 20 events
+ GET /api/gamma/events?limit=20&offset=0&order=volume&ascending=false&closed=false&archived=false&active=true 200 in 298ms
+ ✓ Compiled in 628ms (1423 modules)
+ ✓ Compiled in 250ms (1423 modules)
+ ✓ Compiled /api/gamma/events in 110ms (771 modules)
+[API] Proxying request to: https://gamma-api.polymarket.com/events?limit=20&offset=0&order=volume&ascending=false&closed=false&archived=false&active=true
+[API] Successfully fetched 20 events
+ GET /api/gamma/events?limit=20&offset=0&order=volume&ascending=false&closed=false&archived=false&active=true 200 in 411ms
+ ✓ Compiled in 208ms (1439 modules)
+ ✓ Compiled in 212ms (1439 modules)
+ ✓ Compiled in 245ms (1439 modules)
+ ✓ Compiled in 240ms (1439 modules)
+ ✓ Compiled in 225ms (1439 modules)
+ ✓ Compiled in 309ms (1439 modules)
+ ✓ Compiled in 283ms (1439 modules)
+ ✓ Compiled in 157ms (1439 modules)
+ ✓ Compiled in 259ms (1439 modules)
+ ✓ Compiled in 155ms (1439 modules)
+ ✓ Compiled in 230ms (1439 modules)
+ ✓ Compiled in 201ms (1423 modules)
+ ✓ Compiled in 148ms (1423 modules)
+ ✓ Compiled in 188ms (1423 modules)
+ ✓ Compiled in 352ms (1423 modules)
+ ○ Compiling /api/gamma/events ...
+ ✓ Compiled /api/gamma/events in 513ms (771 modules)
+[API] Proxying request to: https://gamma-api.polymarket.com/events?limit=20&offset=0&order=volume&ascending=false&closed=false&archived=false&active=true
+[API] Successfully fetched 20 events
+ GET /api/gamma/events?limit=20&offset=0&order=volume&ascending=false&closed=false&archived=false&active=true 200 in 1134ms
+[API] Proxying request to: https://gamma-api.polymarket.com/events?limit=20&offset=0&order=volume&ascending=false&closed=false&archived=false&active=true
+[API] Successfully fetched 20 events
+ GET /api/gamma/events?limit=20&offset=0&order=volume&ascending=false&closed=false&archived=false&active=true 200 in 490ms
+   Reload env: .env.local
+ ✓ Compiled in 2.9s (1471 modules)
+ GET / 200 in 52ms
+ ✓ Compiled in 341ms (1453 modules)
+ GET / 200 in 57ms
+[API] Proxying request to: https://gamma-api.polymarket.com/events?limit=20&offset=0&order=volume&ascending=false&closed=false&archived=false&active=true
+[API] Successfully fetched 20 events
+ GET /api/gamma/events?limit=20&offset=0&order=volume&ascending=false&closed=false&archived=false&active=true 200 in 246ms
+ GET / 200 in 713ms
+[API] Proxying request to: https://gamma-api.polymarket.com/events?limit=20&offset=0&order=volume&ascending=false&closed=false&archived=false&active=true
+ GET /api/gamma/events?limit=20&offset=0&order=volume&ascending=false&closed=false&archived=false&active=true 200 in 21ms
+[API] Successfully fetched 20 events

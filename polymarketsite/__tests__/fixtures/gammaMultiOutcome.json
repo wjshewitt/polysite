@@ -1,0 +1,30 @@
+{
+  "id": "event-123",
+  "slug": "sample-event",
+  "title": "Sample Multi Outcome Event",
+  "commentCount": 12,
+  "markets": [
+    {
+      "id": "market-a",
+      "slug": "market-a",
+      "question": "Outcome A",
+      "outcomes": "[\"No\", \"Outcome A\"]",
+      "outcomePrices": "[0.48, 0.52]",
+      "clobTokenIds": "[\"token-no-a\", \"token-yes-a\"]",
+      "volume": "1234",
+      "liquidity": "567",
+      "conditionId": "cond-a"
+    },
+    {
+      "id": "market-b",
+      "slug": "market-b",
+      "question": "Outcome B",
+      "outcomes": "[\"No\", \"Outcome B\"]",
+      "outcomePrices": "[0.6, 0.4]",
+      "clobTokenIds": "[\"token-no-b\", \"token-yes-b\"]",
+      "volume": "2345",
+      "liquidity": "678",
+      "conditionId": "cond-b"
+    }
+  ]
+}
