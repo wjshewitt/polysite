@@ -11,6 +11,12 @@ import {
 } from "@/lib/markets";
 import type { NormalizedMarket, EventOutcomes } from "@/types/markets";
 import { cachedFetch } from "@/services/marketsCache";
+import {
+  filterGammaEvents,
+  filterGammaMarkets,
+  logFilterStats,
+  getFilterStats,
+} from "@/lib/marketFilters";
 
 const GAMMA_API_BASE = "https://gamma-api.polymarket.com";
 const USE_API_PROXY = typeof window !== "undefined"; // Use proxy on client-side
@@ -208,8 +214,24 @@ class GammaAPIService {
 
       if (!response.ok) {
         const errorText = await response.text().catch(() => "");
-        console.error(`[GammaAPI] Error response:`, errorText);
+        console.warn(`[GammaAPI] Error response:`, errorText);
+        
+        // Check if we got HTML instead of JSON (likely a 404 page)
+        const contentType = response.headers.get("content-type") || "";
+        if (contentType.includes("text/html")) {
+          console.warn(`[GammaAPI] Received HTML instead of JSON - check if API route exists: ${url}`);
+          throw new Error(`API route not found or returning HTML instead of JSON. URL: ${url}`);
+        }
+        
         throw new Error(`API error: ${response.status} ${response.statusText}`);
+      }
+
+      // Check content-type before parsing JSON
+      const contentType = response.headers.get("content-type") || "";
+      if (!contentType.includes("application/json")) {
+        const errorText = await response.text().catch(() => "");
+        console.warn(`[GammaAPI] Expected JSON but got ${contentType}:`, errorText);
+        throw new Error(`Invalid content type: expected JSON but got ${contentType}`);
       }
 
       const data = await response.json();
@@ -221,16 +243,26 @@ class GammaAPIService {
       }
 
       console.log(`[GammaAPI] Successfully fetched ${data.length} events`);
-      this.setCache(cacheKey, data);
-      return data;
+
+      // Apply filtering
+      const stats = getFilterStats(data);
+      const filtered = filterGammaEvents(data);
+      logFilterStats("fetchEvents", {
+        ...stats,
+        passed: filtered.length,
+        filtered: data.length - filtered.length,
+      });
+
+      this.setCache(cacheKey, filtered);
+      return filtered;
     };
 
     try {
       const data = await cachedFetch(cacheKey, fetcher);
-      this.setCache(cacheKey, data);
+      // Data is already filtered in the fetcher
       return data;
     } catch (error) {
-      console.error("[GammaAPI] Error fetching events:", error);
+      console.warn("[GammaAPI] Error fetching events:", error);
       throw error;
     }
   }
@@ -238,7 +270,7 @@ class GammaAPIService {
   /**
    * Fetch a single event by slug
    */
-  async fetchEventBySlug(slug: string): Promise<GammaEvent> {
+  async fetchEventBySlug(slug: string): Promise<GammaEvent | null> {
     const cacheKey = `${this.cacheVersion}:event:${slug}`;
 
     // Check cache
@@ -250,13 +282,44 @@ class GammaAPIService {
     try {
       const response = await fetch(`${GAMMA_API_BASE}/events/slug/${slug}`);
       if (!response.ok) {
+        // Don't throw for 404s - return null instead
+        if (response.status === 404) {
+          if (process.env.NODE_ENV === "development") {
+            console.debug(`[GammaAPI] Event not found: ${slug}`);
+          }
+          return null;
+        }
+        
+        // Check if we got HTML instead of JSON
+        const contentType = response.headers.get("content-type") || "";
+        if (contentType.includes("text/html")) {
+          console.error(`[GammaAPI] Received HTML for event slug: ${slug}`);
+          return null;
+        }
+        
         throw new Error(`Gamma API error: ${response.status}`);
       }
+      
+      // Check content-type before parsing JSON
+      const contentType = response.headers.get("content-type") || "";
+      if (!contentType.includes("application/json")) {
+        console.error(`[GammaAPI] Expected JSON for event slug ${slug} but got ${contentType}`);
+        return null;
+      }
+      
       const data = await response.json();
       this.setCache(cacheKey, data);
       return data;
-    } catch (error) {
-      console.error("Error fetching event by slug:", error);
+    } catch (error: any) {
+      // Don't log 404s - they're expected for old/removed markets
+      const is404 = error?.message?.includes("404");
+      if (!is404) {
+        console.error("Error fetching event by slug:", error);
+      }
+      // Return null for 404s, re-throw other errors
+      if (is404 || error?.message?.includes("HTML")) {
+        return null;
+      }
       throw error;
     }
   }
@@ -289,13 +352,23 @@ class GammaAPIService {
         throw new Error(`Gamma API error: ${response.status}`);
       }
       const data = await response.json();
-      this.setCache(cacheKey, data);
-      return data;
+
+      // Apply filtering
+      const stats = getFilterStats(data);
+      const filtered = filterGammaMarkets(data);
+      logFilterStats("fetchMarkets", {
+        ...stats,
+        passed: filtered.length,
+        filtered: data.length - filtered.length,
+      });
+
+      this.setCache(cacheKey, filtered);
+      return filtered;
     };
 
     try {
       const data = await cachedFetch(cacheKey, fetcher);
-      this.setCache(cacheKey, data);
+      // Data is already filtered in the fetcher
       return data;
     } catch (error) {
       console.error("Error fetching markets from Gamma API:", error);
@@ -316,16 +389,42 @@ class GammaAPIService {
     }
 
     try {
-      const response = await fetch(`${GAMMA_API_BASE}/markets/slug/${slug}`);
+      const baseUrl = USE_API_PROXY ? API_PROXY_BASE : GAMMA_API_BASE;
+      const url = `${baseUrl}/markets/slug/${slug}`;
+      const response = await fetch(url, {
+        headers: { Accept: "application/json" },
+      });
+
       if (!response.ok) {
+        // Treat 404s as null (market removed/renamed)
+        if (response.status === 404) {
+          return null as any;
+        }
+        // If server returned HTML (proxy missing or route invalid), don't throw—return null
+        const ct = response.headers.get("content-type") || "";
+        if (ct.includes("text/html")) {
+          return null as any;
+        }
         throw new Error(`Gamma API error: ${response.status}`);
       }
+
+      // Validate content type is JSON
+      const contentType = response.headers.get("content-type") || "";
+      if (!contentType.includes("application/json")) {
+        return null as any;
+      }
+
       const data = await response.json();
       this.setCache(cacheKey, data);
       return data;
-    } catch (error) {
+    } catch (error: any) {
+      // Don't log 404s/HTML—return null upstream quietly
+      const is404 = error?.message?.includes("404");
+      if (is404 || error?.message?.includes("HTML")) {
+        return null as any;
+      }
       console.error("Error fetching market by slug:", error);
-      throw error;
+      return null as any;
     }
   }
 
@@ -422,7 +521,7 @@ class GammaAPIService {
 
       if (!response.ok) {
         const errorText = await response.text().catch(() => "");
-        console.error(`[GammaAPI] Error response:`, errorText);
+        console.warn(`[GammaAPI] Error response:`, errorText);
         throw new Error(`API error: ${response.status} ${response.statusText}`);
       }
 
@@ -438,7 +537,7 @@ class GammaAPIService {
       this.setCache(cacheKey, data);
       return data;
     } catch (error) {
-      console.error("[GammaAPI] Error fetching comments:", error);
+      console.warn("[GammaAPI] Error fetching comments:", error);
       throw error;
     }
   }

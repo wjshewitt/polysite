@@ -35,3 +35,24 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# clerk configuration (can include secrets)
+/.clerk/
+
+# Documentation files (auto-generated)
+*.md
+!README.md
+!FEATURES.md
+!ADVANCED_FEATURES.md
+!CONVEX_SETUP.md
+!CONVEX_FEATURES_GUIDE.md
+
+# Environment setup scripts
+claude_code_zai_env.sh
+
+# Test directories
+__tests__/
+.vitest/
+
+# Python virtual environment
+/venv/

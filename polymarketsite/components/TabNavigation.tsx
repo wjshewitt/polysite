@@ -7,6 +7,7 @@ export type TabView = "main" | "orderbook" | "trading";
 export type SubTabView =
   | "all"
   | "livedata"
+  | "marketfocus"
   | "crypto"
   | "politics"
   | "sports"
@@ -57,6 +58,12 @@ const SUB_TABS: SubTab[] = [
     label: "LIVE DATA",
     description: "Live trades & order book",
     emoji: "📊",
+  },
+  {
+    id: "marketfocus",
+    label: "MARKET FOCUS",
+    description: "Detailed market analysis",
+    emoji: "🎯",
   },
   {
     id: "crypto",

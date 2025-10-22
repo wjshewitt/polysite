@@ -16,6 +16,8 @@ interface CryptoPriceDisplay {
 
 export function CryptoPrices() {
   const cryptoPrices = usePolymarketStore((state) => state.cryptoPrices);
+  const connected = usePolymarketStore((state) => state.connected);
+  const error = usePolymarketStore((state) => state.error);
   const [prices, setPrices] = useState<CryptoPriceDisplay[]>([]);
 
   useEffect(() => {
@@ -134,12 +136,31 @@ export function CryptoPrices() {
     return (
       <div className="h-full bg-card border border-border flex items-center justify-center">
         <div className="flex flex-col items-center gap-2">
-          <div className="text-muted-foreground font-mono text-sm">
-            ⏳ Connecting to crypto price feed...
-          </div>
-          <div className="text-muted-foreground/80 font-mono text-xs">
-            Live prices via Polymarket WebSocket
-          </div>
+          {!connected && error ? (
+            <>
+              <div className="text-destructive font-mono text-sm">
+                ⚠️ Price feed unavailable
+              </div>
+              <div className="text-muted-foreground font-mono text-xs">
+                {error.includes("1006") ? "Network connection lost" : error}
+              </div>
+              <button
+                onClick={() => window.location.reload()}
+                className="text-xs bg-destructive/20 hover:bg-destructive/30 px-2 py-1 rounded transition-colors mt-2"
+              >
+                Retry
+              </button>
+            </>
+          ) : (
+            <>
+              <div className="text-muted-foreground font-mono text-sm">
+                ⏳ Connecting to crypto price feed...
+              </div>
+              <div className="text-muted-foreground/80 font-mono text-xs">
+                Live prices via Polymarket WebSocket
+              </div>
+            </>
+          )}
         </div>
       </div>
     );

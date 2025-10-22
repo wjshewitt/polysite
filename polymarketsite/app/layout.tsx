@@ -4,6 +4,8 @@ import Script from "next/script";
 import "./globals.css";
 import { ThemeProvider } from "@/components/ThemeProvider";
 import { ConvexProvider } from "@/components/ConvexProvider";
+import { ClerkProvider } from "@clerk/nextjs";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 const jetbrainsMono = JetBrains_Mono({
   subsets: ["latin"],
@@ -78,9 +80,13 @@ export default function RootLayout({
 })();`,
           }}
         />
-        <ConvexProvider>
-          <ThemeProvider>{children}</ThemeProvider>
-        </ConvexProvider>
+        <ClerkProvider>
+          <ConvexProvider>
+            <ErrorBoundary>
+              <ThemeProvider>{children}</ThemeProvider>
+            </ErrorBoundary>
+          </ConvexProvider>
+        </ClerkProvider>
       </body>
     </html>
   );

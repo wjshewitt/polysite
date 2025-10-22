@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { AppShell } from "@/components/AppShell";
 import { AnimatedCounter } from "@/components/test/AnimatedCounter";
 import { ParticleBackground } from "@/components/test/ParticleBackground";
 import { LiveChart } from "@/components/test/LiveChart";
@@ -29,8 +30,9 @@ export default function TestPage() {
   ];
 
   return (
-    <main className="min-h-screen bg-background p-4">
-      <div className="max-w-7xl mx-auto">
+    <AppShell>
+      <main className="min-h-[calc(100vh-4rem)] bg-background p-4">
+        <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-4xl font-mono font-bold tracking-tight text-neutral mb-2">
@@ -104,13 +106,14 @@ export default function TestPage() {
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="mt-8 panel text-center">
-          <p className="text-xs font-mono text-muted-foreground">
-            Experimental components for testing and prototyping new features
-          </p>
+          {/* Footer */}
+          <div className="mt-8 panel text-center">
+            <p className="text-xs font-mono text-muted-foreground">
+              Experimental components for testing and prototyping new features
+            </p>
+          </div>
         </div>
-      </div>
-    </main>
+      </main>
+    </AppShell>
   );
 }

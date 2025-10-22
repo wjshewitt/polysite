@@ -53,10 +53,13 @@ class RealtimeService {
   private tradeBuffer: Trade[] = [];
   private tradeBufferTimer: NodeJS.Timeout | null = null;
   private currentReleaseInterval = 250; // Dynamic interval, starts at 250ms
-  
+
+  // Per-market activity tracking for low-activity detection
+  private marketActivity: Map<string, number[]> = new Map();
+
   // Adaptive release rate thresholds
-  private readonly minReleaseInterval = 50;    // Fastest: 50ms (20 trades/sec) during spikes
-  private readonly maxReleaseInterval = 400;   // Slowest: 400ms (2.5 trades/sec) when quiet
+  private readonly minReleaseInterval = 50; // Fastest: 50ms (20 trades/sec) during spikes
+  private readonly maxReleaseInterval = 400; // Slowest: 400ms (2.5 trades/sec) when quiet
   private readonly normalReleaseInterval = 250; // Normal: 250ms (4 trades/sec)
 
   constructor() {
@@ -393,29 +396,50 @@ class RealtimeService {
   private handleTradeMessage(payload: any, store: any): void {
     const trade: Trade = {
       id: payload.id || `${Date.now()}-${Math.random()}`,
-      market: payload.conditionId || payload.market || "",
-      marketTitle: payload.title || payload.eventSlug || "Unknown Market",
+      // market/condition identifier (support multiple possible keys from RT payloads)
+      market:
+        payload.conditionId || payload.market || payload.m || payload.condition_id || "",
+      marketTitle:
+        payload.title || payload.eventSlug || payload.event_slug || "Unknown Market",
       eventSlug: payload.eventSlug || payload.event_slug || undefined,
-      asset: payload.asset || "",
-      side: payload.side || "BUY",
-      size: payload.size?.toString() || "0",
-      price: payload.price?.toString() || "0",
-      timestamp: payload.timestamp || Date.now(),
-      maker: payload.maker_address || "",
-      taker: payload.proxyWallet || "",
-      tradeId: payload.id || payload.transactionHash || "",
-      outcome: payload.outcome || "",
-      outcomeIndex: payload.outcomeIndex || 0,
-      feeRateBps: payload.fee_rate_bps || "0",
+      // token/asset identifier (support alternative keys)
+      asset:
+        payload.asset ||
+        payload.asset_id ||
+        payload.token_id ||
+        payload.tokenId ||
+        "",
+      side: String(payload.side || payload.s || "BUY").toUpperCase() as any,
+      size: String(payload.size ?? payload.sz ?? "0"),
+      price: String(payload.price ?? payload.p ?? "0"),
+      timestamp: Number(payload.timestamp ?? payload.t ?? Date.now()),
+      maker: payload.maker_address || payload.maker || "",
+      taker: payload.proxyWallet || payload.taker || "",
+      tradeId: payload.id || payload.transactionHash || payload.tx_hash || "",
+      outcome: payload.outcome || payload.o || "",
+      outcomeIndex: Number(payload.outcomeIndex ?? payload.oi ?? 0),
+      feeRateBps: String(payload.fee_rate_bps ?? payload.feeBps ?? "0"),
       status: payload.status || "matched",
     };
 
-    // Add trade to buffer instead of directly to store
-    this.tradeBuffer.push(trade);
+    // Track activity for this market
+    const marketId = trade.market || trade.marketTitle;
+    const now = Date.now();
+    const timestamps = this.marketActivity.get(marketId) || [];
+    timestamps.push(now);
+    this.marketActivity.set(marketId, timestamps);
 
-    // Start the release timer if not already running
-    if (!this.tradeBufferTimer) {
-      this.startTradeBufferRelease();
+    // For low-activity markets (sub 100 trades per minute), add directly to store
+    if (this.isLowActivityMarket(marketId)) {
+      store.addTrade(trade);
+    } else {
+      // Add trade to buffer for high-activity markets
+      this.tradeBuffer.push(trade);
+
+      // Start the release timer if not already running
+      if (!this.tradeBufferTimer) {
+        this.startTradeBufferRelease();
+      }
     }
   }
 
@@ -462,11 +486,17 @@ class RealtimeService {
       if (this.tradeBufferTimer) {
         clearTimeout(this.tradeBufferTimer);
       }
-      this.tradeBufferTimer = setTimeout(releaseOneTrade, this.currentReleaseInterval) as any;
+      this.tradeBufferTimer = setTimeout(
+        releaseOneTrade,
+        this.currentReleaseInterval,
+      ) as any;
     };
 
     // Start the release cycle
-    this.tradeBufferTimer = setTimeout(releaseOneTrade, this.currentReleaseInterval) as any;
+    this.tradeBufferTimer = setTimeout(
+      releaseOneTrade,
+      this.currentReleaseInterval,
+    ) as any;
   }
 
   // Stop releasing trades from buffer
@@ -475,6 +505,17 @@ class RealtimeService {
       clearTimeout(this.tradeBufferTimer);
       this.tradeBufferTimer = null;
     }
+  }
+
+  // Check if a market has low activity (sub 100 trades per minute)
+  private isLowActivityMarket(marketId: string): boolean {
+    const now = Date.now();
+    const oneMinuteAgo = now - 60000; // 1 minute in milliseconds
+    const timestamps = this.marketActivity.get(marketId) || [];
+    const recentTrades = timestamps.filter(t => t > oneMinuteAgo);
+    // Update the map with filtered timestamps
+    this.marketActivity.set(marketId, recentTrades);
+    return recentTrades.length < 100;
   }
 
   // Flush remaining buffered trades to store (called on disconnect)
@@ -773,7 +814,10 @@ class RealtimeService {
     this.pendingKeepAlive = false;
     this.keepAliveSentAt = null;
 
-    const monitorInterval = Math.max(5000, Math.floor(this.heartbeatInterval / 2));
+    const monitorInterval = Math.max(
+      5000,
+      Math.floor(this.heartbeatInterval / 2),
+    );
 
     this.heartbeatTimer = setInterval(() => {
       if (!this.isConnected || this.useMockData || !this.client) {

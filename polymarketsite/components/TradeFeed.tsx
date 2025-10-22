@@ -26,10 +26,12 @@ export function TradeFeed({
   const router = useRouter();
   const searchParams = useSearchParams();
   const allTrades = usePolymarketStore((state) => state.trades);
+  const selectedMarket = usePolymarketStore((state) => state.selectedMarket);
   const [displayedTrades, setDisplayedTrades] = useState<Trade[]>([]);
   const [isPaused, setIsPaused] = useState(false);
   const [selectedTrade, setSelectedTrade] = useState<Trade | null>(null);
-  const [selectedMarket, setSelectedMarket] = useState<GammaEvent | null>(null);
+  const [modalMarket, setModalMarket] = useState<GammaEvent | null>(null);
+
   const [tradeModalOpen, setTradeModalOpen] = useState(false);
   const [marketModalOpen, setMarketModalOpen] = useState(false);
   const [totalOutcomes, setTotalOutcomes] = useState<number | undefined>(
@@ -58,6 +60,24 @@ export function TradeFeed({
   const filterTrades = useCallback(
     (trades: Trade[]) => {
       return trades.filter((trade) => {
+        // Filter by selected market (if active)
+        if (selectedMarket) {
+          // Match by market/condition id OR by token ids
+          const matchesById =
+            (selectedMarket.conditionId &&
+              trade.market === selectedMarket.conditionId) ||
+            trade.market === selectedMarket.marketId;
+          const matchesByToken =
+            (!!selectedMarket.clobTokenIds &&
+              selectedMarket.clobTokenIds.includes(trade.asset)) ||
+            trade.asset === selectedMarket.yesTokenId ||
+            trade.asset === selectedMarket.noTokenId;
+
+          if (!(matchesById || matchesByToken)) {
+            return false;
+          }
+        }
+
         // Calculate trade value
         const tradeValue = parseFloat(trade.price) * parseFloat(trade.size);
 
@@ -78,7 +98,7 @@ export function TradeFeed({
         return true;
       });
     },
-    [minValue, highConvictionOnly],
+    [minValue, highConvictionOnly, selectedMarket],
   );
 
   // Sync override filter values
@@ -192,7 +212,23 @@ export function TradeFeed({
             );
             if (market?.slug) {
               params.set("outcome", market.slug);
-              state.setSelectedMarket(market.id);
+              // Create SelectedMarketState from market and eventOutcome
+              const selectedState = {
+                marketId: market.id,
+                conditionId: market.conditionId,
+                slug: market.slug,
+                name: market.displayName || market.title,
+                eventId: eventOutcome.eventId,
+                eventSlug: eventOutcome.slug,
+                eventTitle: eventOutcome.title,
+                yesTokenId: market.yesTokenId,
+                noTokenId: market.noTokenId,
+                clobTokenIds: market.clobTokenIds,
+                icon: market.icon,
+                image: market.image,
+                selectedAt: Date.now(),
+              };
+              state.setSelectedMarket(selectedState);
             }
           });
         }
@@ -222,7 +258,23 @@ export function TradeFeed({
             // Get the event slug from EventOutcomes
             foundEventSlug = eventOutcome.slug;
             foundOutcomeSlug = market.slug;
-            state.setSelectedMarket(market.id);
+            // Create SelectedMarketState from market and eventOutcome
+            const selectedState = {
+              marketId: market.id,
+              conditionId: market.conditionId,
+              slug: market.slug,
+              name: market.displayName || market.title,
+              eventId: eventOutcome.eventId,
+              eventSlug: eventOutcome.slug,
+              eventTitle: eventOutcome.title,
+              yesTokenId: market.yesTokenId,
+              noTokenId: market.noTokenId,
+              clobTokenIds: market.clobTokenIds,
+              icon: market.icon,
+              image: market.image,
+              selectedAt: Date.now(),
+            };
+            state.setSelectedMarket(selectedState);
           }
         });
 
@@ -458,7 +510,7 @@ export function TradeFeed({
 
       {/* Market Detail Modal */}
       <MarketDetailModal
-        market={selectedMarket}
+        market={modalMarket}
         open={marketModalOpen}
         onOpenChange={setMarketModalOpen}
       />

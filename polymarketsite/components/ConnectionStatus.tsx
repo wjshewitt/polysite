@@ -4,7 +4,7 @@ import { usePolymarketStore } from "@/store/usePolymarketStore";
 import { realtimeService } from "@/services/realtime";
 
 export function ConnectionStatus() {
-  const { connected, connecting, error } = usePolymarketStore();
+  const { connected, connecting, error, lastErrorCode } = usePolymarketStore();
 
   const handleReconnect = () => {
     realtimeService.connect();
@@ -39,7 +39,9 @@ export function ConnectionStatus() {
       </div>
 
       {error && !isMockData && (
-        <span className="text-sm text-destructive font-mono">| {error}</span>
+        <span className="text-sm text-destructive font-mono">
+          | {error.includes("1006") ? "WebSocket disconnected (network issue)" : error}
+        </span>
       )}
 
       {isMockData && (

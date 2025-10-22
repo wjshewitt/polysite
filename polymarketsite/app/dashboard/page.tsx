@@ -4,7 +4,7 @@ import { useEffect, useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { realtimeService } from "@/services/realtime";
 import { clobService } from "@/services/clob";
-import { ConnectionStatus } from "@/components/ConnectionStatus";
+import { AppShell } from "@/components/AppShell";
 import { TradeFeed } from "@/components/TradeFeed";
 import { CryptoTicker } from "@/components/CryptoTicker";
 import { OrderBook } from "@/components/OrderBook";
@@ -16,9 +16,9 @@ import { MyOrders } from "@/components/MyOrders";
 import { ClobAuth } from "@/components/ClobAuth";
 import { CryptoMarkets } from "@/components/CryptoMarkets";
 import { LiveData } from "@/components/LiveData";
+import { MarketFocus } from "@/components/MarketFocus";
 import { SettingsModal } from "@/components/SettingsModal";
 import { DiagnosticsModal } from "@/components/DiagnosticsModal";
-import { ThemeToggle } from "@/components/ThemeToggle";
 import { usePolymarketStore } from "@/store/usePolymarketStore";
 import { Settings, Activity } from "lucide-react";
 
@@ -43,6 +43,7 @@ function DashboardContent() {
       subtab &&
       (subtab === "all" ||
         subtab === "livedata" ||
+        subtab === "marketfocus" ||
         subtab === "crypto" ||
         subtab === "politics" ||
         subtab === "sports" ||
@@ -64,8 +65,6 @@ function DashboardContent() {
           isAuthenticated={clobAuth.isAuthenticated}
           rightContent={
             <>
-              <ConnectionStatus />
-              <ThemeToggle />
               <button
                 onClick={() => setDiagnosticsOpen(true)}
                 className="p-2 hover:bg-muted transition-colors border border-border"
@@ -85,15 +84,21 @@ function DashboardContent() {
         />
       </div>
 
-      {/* CLOB Authentication - Fixed (hide on livedata subtab) */}
-      {!(currentTab === "main" && currentSubTab === "livedata") && (
+      {/* CLOB Authentication - Fixed (hide on livedata and marketfocus subtabs) */}
+      {!(
+        currentTab === "main" &&
+        (currentSubTab === "livedata" || currentSubTab === "marketfocus")
+      ) && (
         <div className="mb-4 flex-shrink-0">
           <ClobAuth />
         </div>
       )}
 
-      {/* Crypto Ticker - Fixed (hide on livedata subtab) */}
-      {!(currentTab === "main" && currentSubTab === "livedata") && (
+      {/* Crypto Ticker - Fixed (hide on livedata and marketfocus subtabs) */}
+      {!(
+        currentTab === "main" &&
+        (currentSubTab === "livedata" || currentSubTab === "marketfocus")
+      ) && (
         <div className="mb-4 flex-shrink-0">
           <CryptoTicker />
         </div>
@@ -132,6 +137,12 @@ function DashboardContent() {
           {currentSubTab === "livedata" && (
             <div className="flex-1 min-h-0 overflow-hidden">
               <LiveData />
+            </div>
+          )}
+
+          {currentSubTab === "marketfocus" && (
+            <div className="flex-1 min-h-0 overflow-hidden">
+              <MarketFocus />
             </div>
           )}
 
@@ -225,20 +236,22 @@ export default function Home() {
   }, []);
 
   return (
-    <main className="min-h-screen flex flex-col p-4 bg-background overflow-y-auto supports-[height:100dvh]:min-h-[100dvh]">
-      <Suspense
-        fallback={
-          <div className="flex-1 flex items-center justify-center">
-            <div className="text-center">
-              <div className="animate-pulse text-muted-foreground font-mono text-sm">
-                LOADING...
+    <AppShell>
+      <main className="min-h-[calc(100vh-4rem)] flex flex-col p-4 bg-background overflow-y-auto">
+        <Suspense
+          fallback={
+            <div className="flex-1 flex items-center justify-center">
+              <div className="text-center">
+                <div className="animate-pulse text-muted-foreground font-mono text-sm">
+                  LOADING...
+                </div>
               </div>
             </div>
-          </div>
-        }
-      >
-        <DashboardContent />
-      </Suspense>
-    </main>
+          }
+        >
+          <DashboardContent />
+        </Suspense>
+      </main>
+    </AppShell>
   );
 }

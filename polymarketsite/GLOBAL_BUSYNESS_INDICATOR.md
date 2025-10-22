@@ -20,6 +20,7 @@ The Global Busyness Indicator is a visual component that displays real-time mark
 
 3. **Detailed Tooltip (on hover)**
    - **Live Trades/Minute**: Real-time trade execution rate (calibrates over 30 seconds)
+   - **Active Markets/Minute**: Market diversity metric showing how many unique markets are actively traded in a 30-second sliding window
    - Current activity rate (events per minute from Convex)
    - Comparison vs 24-hour average
    - Comparison vs 7-day average
@@ -61,6 +62,15 @@ The indicator tracks two types of metrics:
   - Displays total tracked trades
   - Updates immediately when new trades arrive
 
+- **Active Markets Per Minute**: Market diversity metric
+  - Calculated from WebSocket trade stream using 30-second sliding window
+  - Tracks unique markets (events) that have trades
+  - Shows how concentrated or distributed trading activity is
+  - Low values (1-5): Trading concentrated in few popular markets
+  - High values (16+): Trading spread across many markets
+  - Requires 30-second calibration period
+  - Displays current count of active markets in window
+
 #### Aggregated Convex Metrics (Server-side)
 - **Orderbook requests**: Market depth checks and updates
 - **Trade events**: Executed trades
@@ -72,6 +82,10 @@ The indicator tracks two types of metrics:
 ```typescript
 // Live local calculation (client-side)
 tradesPerMinute = totalTradesSinceStart / elapsedMinutes
+
+// Market diversity (using 30-second sliding window)
+uniqueMarkets = new Set(tradesInWindow.map(t => t.marketId))
+eventsPerMinute = uniqueMarkets.size * 2  // Scale to per minute
 
 // Convex aggregated calculation (server-side)
 currentRate = totalEvents / snapshotCount
@@ -97,11 +111,13 @@ The primary indicator uses `vs24hRatio`, while the tooltip shows both local and 
 - `api.activity.getGlobalBusyness` - Primary data source
 
 ### Custom Hooks Used
-- `useActivityTracker()` - Tracks local trade activity
-  - Returns: `tradesPerMinute`, `totalTrades`, `isCalibrated`, `calibrationProgress`, `elapsedSeconds`, `lastTradeTime`
+- `useActivityTracker()` - Tracks local trade activity and market diversity
+  - Returns: `tradesPerMinute`, `totalTrades`, `eventsPerMinute` (active markets), `totalEvents` (current market count), `isCalibrated`, `calibrationProgress`, `elapsedSeconds`, `lastTradeTime`, `lastEventTime`
   - Calibration: 30 seconds required for accurate metrics
   - Update frequency: 1 second
   - Counts actual trades from WebSocket feed
+  - Tracks market diversity using 30-second sliding window
+  - Market IDs extracted from: eventSlug, market, or marketTitle fields
 
 ### Props
 None - component is self-contained and handles its own data fetching.
@@ -163,6 +179,15 @@ Possible improvements for future iterations:
 - Wait full 30 seconds for calibration
 - Check browser console for errors in `useActivityTracker`
 - Verify trades are being added to the store (check `trades.length`)
+
+### Active Markets Per Minute Shows 0 or "Calibrating" Forever
+- Verify WebSocket connection is active
+- Check that trades are flowing: `usePolymarketStore.getState().trades.length`
+- Ensure trades have market identifiers (eventSlug, market, or marketTitle)
+- Wait full 30 seconds for calibration
+- Check browser console for trade flow
+- Verify sliding window is being populated in `useActivityTracker`
+- Check that market IDs are being extracted correctly from trades
 
 ### Colors Not Showing Correctly
 - Verify Tailwind CSS classes are being processed

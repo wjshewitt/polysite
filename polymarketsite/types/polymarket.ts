@@ -4,7 +4,11 @@ import type {
   OrderbookDepth,
   ClobAuthState,
 } from "@/services/clob";
-import type { EventOutcomes, NormalizedMarket } from "@/types/markets";
+import type {
+  EventOutcomes,
+  NormalizedMarket,
+  OutcomeTimeframe,
+} from "@/types/markets";
 
 // Core Message Types
 export interface BaseMessage {
@@ -35,6 +39,13 @@ export interface Trade {
   outcomeIndex: number;
   feeRateBps: string;
   status: string;
+}
+
+export interface Event {
+  id: string;
+  type: "orderbook" | "trade" | "order" | "liquidity";
+  market: string;
+  timestamp: number;
 }
 
 // Order Matched
@@ -235,15 +246,34 @@ export interface WSConfig {
   heartbeatInterval: number;
 }
 
+// Selected Market State (rich metadata for UI and filtering)
+export interface SelectedMarketState {
+  marketId: string;
+  conditionId?: string;
+  slug: string;
+  name: string;
+  eventId: string;
+  eventSlug: string;
+  eventTitle: string;
+  yesTokenId?: string;
+  noTokenId?: string;
+  clobTokenIds?: string[];
+  icon?: string;
+  image?: string;
+  selectedAt: number;
+}
+
 // Store State
 export interface PolymarketStore {
   // Connection state
   connected: boolean;
   connecting: boolean;
   error: string | null;
+  lastErrorCode: number | null;
 
   // Data
   trades: Trade[];
+  events: Event[];
   comments: Comment[];
   reactions: Reaction[];
   cryptoPrices: Map<string, CryptoPrice>;
@@ -251,19 +281,24 @@ export interface PolymarketStore {
   priceChanges: Map<string, PriceChange>;
   markets: Map<string, Market>;
   eventOutcomes: Map<string, EventOutcomes>;
+  marketHistories: Map<string, Array<{ timestamp: number; probability: number }>>;
+  outcomeTimeframe: OutcomeTimeframe;
 
   // CLOB data
   clobAuth: ClobAuthState;
   userOrders: UserOrder[];
   marketMetadata: Map<string, MarketMetadata>;
   orderbookDepth: Map<string, OrderbookDepth>;
-  selectedMarket: string | null;
+  selectedMarket: SelectedMarketState | null;
+  recentMarkets: SelectedMarketState[];
 
   // Actions
   setConnected: (connected: boolean) => void;
   setConnecting: (connecting: boolean) => void;
   setError: (error: string | null) => void;
+  setErrorWithCode: (error: string | null, code: number | null) => void;
   addTrade: (trade: Trade) => void;
+  addEvent: (event: Event) => void;
   addComment: (comment: Comment) => void;
   addReaction: (reaction: Reaction) => void;
   updateCryptoPrice: (price: CryptoPrice) => void;
@@ -288,7 +323,10 @@ export interface PolymarketStore {
   removeUserOrder: (orderId: string) => void;
   updateMarketMetadata: (metadata: MarketMetadata) => void;
   updateOrderbookDepth: (depth: OrderbookDepth) => void;
-  setSelectedMarket: (marketId: string | null) => void;
+  setSelectedMarket: (market: SelectedMarketState | null) => void;
+  clearSelectedMarket: () => void;
+  addRecentMarket: (market: SelectedMarketState) => void;
+  setOutcomeTimeframe: (timeframe: OutcomeTimeframe) => void;
 
   clear: () => void;
   clearClobData: () => void;

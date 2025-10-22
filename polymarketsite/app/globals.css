@@ -22,9 +22,9 @@
     --accent-foreground: 11 11 11;
     --destructive: 220 38 38;
     --destructive-foreground: 255 255 255;
-    --success: 0 255 156;
+    --success: 0 200 120;
     --success-foreground: 11 11 11;
-    --buy: 0 255 156;
+    --buy: 0 200 120;
     --sell: 255 60 60;
     --neutral: 85 175 255;
     --border: 229 229 229;
@@ -60,9 +60,9 @@
     --accent-foreground: 234 234 234;
     --destructive: 255 60 60;
     --destructive-foreground: 234 234 234;
-    --success: 0 255 156;
+    --success: 0 200 120;
     --success-foreground: 11 11 11;
-    --buy: 0 255 156;
+    --buy: 0 200 120;
     --sell: 255 60 60;
     --neutral: 85 175 255;
     --border: 42 42 42;
@@ -72,6 +72,10 @@
 }
 
 @layer base {
+  html {
+    scroll-behavior: smooth;
+  }
+
   * {
     @apply border-border;
     border-radius: 0 !important;
@@ -158,5 +162,130 @@
     .panel {
       padding: 0.75rem;
     }
+  }
+
+  /* Clerk component custom styling */
+  .clerk-auth-wrapper {
+    @apply font-mono;
+  }
+
+  /* Override Clerk's default styles to match our aesthetic */
+  .cl-rootBox {
+    width: 100%;
+  }
+
+  .cl-card {
+    background: transparent !important;
+    box-shadow: none !important;
+    border: 0 !important;
+    padding: 0 !important;
+  }
+
+  .cl-headerTitle,
+  .cl-headerSubtitle {
+    display: none !important;
+  }
+
+  .cl-socialButtonsBlockButton {
+    @apply border border-border bg-card text-foreground hover:bg-muted font-mono text-xs;
+    border-radius: 0 !important;
+  }
+
+  .cl-socialButtonsBlockButtonText {
+    @apply font-mono text-xs;
+  }
+
+  .cl-dividerLine {
+    @apply bg-border;
+  }
+
+  .cl-dividerText {
+    @apply text-muted-foreground font-mono text-xs;
+  }
+
+  .cl-formFieldLabel {
+    @apply font-mono text-xs text-foreground;
+  }
+
+  .cl-formFieldInput {
+    @apply border border-border bg-background text-foreground font-mono text-xs;
+    border-radius: 0 !important;
+  }
+
+  .cl-formFieldInput:focus {
+    @apply border-success;
+  }
+
+  .cl-formButtonPrimary {
+    @apply bg-success hover:bg-success/90 text-background font-mono text-xs font-bold;
+    border-radius: 0 !important;
+  }
+
+  .cl-footerActionLink {
+    @apply text-buy hover:text-buy/80 font-mono;
+  }
+
+  .cl-identityPreviewText {
+    @apply font-mono text-xs;
+  }
+
+  .cl-formFieldInputShowPasswordButton {
+    @apply text-muted-foreground hover:text-foreground;
+  }
+
+  .cl-internal-b3fm6y {
+    border-radius: 0 !important;
+  }
+
+  /* Scroll reveal animations */
+  @keyframes fadeInUp {
+    from {
+      opacity: 0;
+      transform: translateY(1rem);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .animate-fade-in-up {
+    animation: fadeInUp 1s ease-out forwards;
+  }
+
+  /* Stagger children animations */
+  .stagger-children > * {
+    opacity: 0;
+    transform: translateY(0.5rem);
+    transition: all 0.8s ease-out;
+  }
+
+  .stagger-children.animate-fade-in-up > * {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  .stagger-children > *:nth-child(1) {
+    transition-delay: 0.1s;
+  }
+
+  .stagger-children > *:nth-child(2) {
+    transition-delay: 0.2s;
+  }
+
+  .stagger-children > *:nth-child(3) {
+    transition-delay: 0.3s;
+  }
+
+  .stagger-children > *:nth-child(4) {
+    transition-delay: 0.4s;
+  }
+
+  .stagger-children > *:nth-child(5) {
+    transition-delay: 0.5s;
+  }
+
+  .stagger-children > *:nth-child(6) {
+    transition-delay: 0.6s;
   }
 }

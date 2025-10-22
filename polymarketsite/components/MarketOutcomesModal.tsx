@@ -9,10 +9,17 @@ import {
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Search, ArrowUpDown, TrendingUp, TrendingDown } from "lucide-react";
-import type { NormalizedMarket, Outcome } from "@/types/markets";
+import type {
+  NormalizedMarket,
+  Outcome,
+  EventOutcomeSummary,
+} from "@/types/markets";
+import { MultiOutcomeBoard } from "@/components/markets/MultiOutcomeBoard";
 
 interface MarketOutcomesModalProps {
   market: NormalizedMarket | null;
+  markets?: NormalizedMarket[];
+  summary?: EventOutcomeSummary | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
@@ -29,22 +36,28 @@ type SortOption =
 
 export function MarketOutcomesModal({
   market,
+  markets,
+  summary,
   open,
   onOpenChange,
 }: MarketOutcomesModalProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState<SortOption>("probability-desc");
 
+  const multiSummary = summary?.isMultiOutcome ? summary : null;
+  const marketList = markets ?? (market ? [market] : []);
+  const primaryMarket = market ?? marketList[0] ?? null;
+
   // Filter outcomes based on search query
   const filteredOutcomes = useMemo(() => {
-    if (!market?.outcomes) return [];
-    if (!searchQuery.trim()) return market.outcomes;
+    if (!primaryMarket?.outcomes) return [];
+    if (!searchQuery.trim()) return primaryMarket.outcomes;
 
     const query = searchQuery.toLowerCase();
-    return market.outcomes.filter((outcome) =>
+    return primaryMarket.outcomes.filter((outcome) =>
       outcome.name.toLowerCase().includes(query)
     );
-  }, [market?.outcomes, searchQuery]);
+  }, [primaryMarket?.outcomes, searchQuery]);
 
   // Sort outcomes
   const sortedOutcomes = useMemo(() => {
@@ -82,16 +95,16 @@ export function MarketOutcomesModal({
 
   // Calculate statistics
   const stats = useMemo(() => {
-    if (!market?.outcomes) return null;
+    if (!primaryMarket?.outcomes) return null;
 
-    const totalVolume = market.outcomes.reduce(
+    const totalVolume = primaryMarket.outcomes.reduce(
       (sum, o) => sum + (o.volume ?? 0),
       0
     );
     const avgProbability =
-      market.outcomes.reduce((sum, o) => sum + o.probability, 0) /
-      market.outcomes.length;
-    const topOutcome = [...market.outcomes].sort(
+      primaryMarket.outcomes.reduce((sum, o) => sum + o.probability, 0) /
+      primaryMarket.outcomes.length;
+    const topOutcome = [...primaryMarket.outcomes].sort(
       (a, b) => b.probability - a.probability
     )[0];
 
@@ -99,9 +112,9 @@ export function MarketOutcomesModal({
       totalVolume,
       avgProbability,
       topOutcome,
-      totalOutcomes: market.outcomes.length,
+      totalOutcomes: primaryMarket.outcomes.length,
     };
-  }, [market?.outcomes]);
+  }, [primaryMarket?.outcomes]);
 
   const formatProbability = (value: number): string =>
     `${(value * 100).toFixed(1)}%`;
@@ -125,9 +138,12 @@ export function MarketOutcomesModal({
     return `${sign}${(value * 100).toFixed(1)}%`;
   };
 
-  if (!market) return null;
+  if (!multiSummary && !primaryMarket) return null;
 
-  const isBinary = market.type === "binary" || market.outcomes.length <= 2;
+  const isBinary =
+    !multiSummary &&
+    primaryMarket !== null &&
+    (primaryMarket.type === "binary" || primaryMarket.outcomes.length <= 2);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -136,17 +152,17 @@ export function MarketOutcomesModal({
           <div className="space-y-3">
             <div>
               <DialogTitle className="text-xl font-mono font-bold mb-2">
-                {market.title}
+                {multiSummary ? "Event Outcomes" : primaryMarket?.title}
               </DialogTitle>
-              {market.description && (
+              {primaryMarket?.description && !multiSummary && (
                 <p className="text-xs font-mono text-muted-foreground line-clamp-2">
-                  {market.description}
+                  {primaryMarket.description}
                 </p>
               )}
             </div>
 
             {/* Stats Row */}
-            {stats && (
+            {!multiSummary && stats && (
               <div className="flex flex-wrap items-center gap-4 text-xs font-mono">
                 <div className="flex items-center gap-2">
                   <span className="text-muted-foreground">Outcomes:</span>
@@ -177,9 +193,9 @@ export function MarketOutcomesModal({
             )}
 
             {/* Market Tags */}
-            {market.tags && market.tags.length > 0 && (
+            {primaryMarket?.tags && primaryMarket.tags.length > 0 && !multiSummary && (
               <div className="flex flex-wrap gap-1">
-                {market.tags.map((tag) => (
+                {primaryMarket.tags.map((tag) => (
                   <span
                     key={tag.id}
                     className="text-[10px] font-mono bg-muted text-muted-foreground px-2 py-1 border border-border"
@@ -193,64 +209,71 @@ export function MarketOutcomesModal({
         </DialogHeader>
 
         <div className="px-6 py-4 border-b border-border flex-shrink-0 space-y-3">
-          {/* Search Bar */}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
-            <input
-              type="text"
-              placeholder="Search outcomes..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 bg-background border border-border text-sm font-mono placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
-            />
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery("")}
-                className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground text-xs font-mono"
-              >
-                Clear
-              </button>
-            )}
-          </div>
+          {!multiSummary && primaryMarket && (
+            <>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+                <input
+                  type="text"
+                  placeholder="Search outcomes..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 bg-background border border-border text-sm font-mono placeholder:text-muted-foreground/50 focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery("")}
+                    className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground hover:text-foreground text-xs font-mono"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
 
-          {/* Sort Controls */}
-          <div className="flex items-center gap-2">
-            <ArrowUpDown className="w-4 h-4 text-muted-foreground" />
-            <span className="text-xs font-mono text-muted-foreground">
-              Sort by:
-            </span>
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as SortOption)}
-              className="flex-1 px-3 py-2 bg-background border border-border text-xs font-mono focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all cursor-pointer"
-            >
-              <option value="probability-desc">
-                Probability (High to Low)
-              </option>
-              <option value="probability-asc">Probability (Low to High)</option>
-              <option value="price-desc">Price (High to Low)</option>
-              <option value="price-asc">Price (Low to High)</option>
-              {sortedOutcomes.some((o) => o.volume !== undefined) && (
-                <>
-                  <option value="volume-desc">Volume (High to Low)</option>
-                  <option value="volume-asc">Volume (Low to High)</option>
-                </>
-              )}
-              <option value="name-asc">Name (A to Z)</option>
-              <option value="name-desc">Name (Z to A)</option>
-            </select>
-          </div>
+              <div className="flex items-center gap-2">
+                <ArrowUpDown className="w-4 h-4 text-muted-foreground" />
+                <span className="text-xs font-mono text-muted-foreground">
+                  Sort by:
+                </span>
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value as SortOption)}
+                  className="flex-1 px-3 py-2 bg-background border border-border text-xs font-mono focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all cursor-pointer"
+                >
+                  <option value="probability-desc">
+                    Probability (High to Low)
+                  </option>
+                  <option value="probability-asc">Probability (Low to High)</option>
+                  <option value="price-desc">Price (High to Low)</option>
+                  <option value="price-asc">Price (Low to High)</option>
+                  {sortedOutcomes.some((o) => o.volume !== undefined) && (
+                    <>
+                      <option value="volume-desc">Volume (High to Low)</option>
+                      <option value="volume-asc">Volume (Low to High)</option>
+                    </>
+                  )}
+                  <option value="name-asc">Name (A to Z)</option>
+                  <option value="name-desc">Name (Z to A)</option>
+                </select>
+              </div>
 
-          {/* Results Count */}
-          <div className="text-xs font-mono text-muted-foreground">
-            Showing {sortedOutcomes.length} of {market.outcomes.length} outcome
-            {market.outcomes.length !== 1 ? "s" : ""}
-          </div>
+              <div className="text-xs font-mono text-muted-foreground">
+                Showing {sortedOutcomes.length} of {primaryMarket.outcomes.length} outcome
+                {primaryMarket.outcomes.length !== 1 ? "s" : ""}
+              </div>
+            </>
+          )}
         </div>
 
         <ScrollArea className="flex-1 overflow-auto">
           <div className="px-6 py-4">
-            {sortedOutcomes.length === 0 ? (
+            {multiSummary ? (
+              <MultiOutcomeBoard
+                summary={multiSummary}
+                markets={marketList}
+                loading={false}
+              />
+            ) : sortedOutcomes.length === 0 ? (
               <div className="text-center py-12">
                 <p className="text-sm font-mono text-muted-foreground">
                   {searchQuery
@@ -277,7 +300,6 @@ export function MarketOutcomesModal({
                       key={`${outcome.name}-${outcome.tokenId || index}`}
                       className="border border-border p-4 hover:bg-muted/50 hover:border-primary/30 transition-all"
                     >
-                      {/* Outcome Header */}
                       <div className="flex items-start justify-between gap-4 mb-3">
                         <div className="flex-1">
                           <h3 className="text-sm font-mono font-bold mb-1">
@@ -291,7 +313,6 @@ export function MarketOutcomesModal({
                           )}
                         </div>
 
-                        {/* Probability Badge */}
                         <div className="flex flex-col items-end gap-1">
                           <span
                             className={`text-lg font-mono font-bold ${probabilityColor}`}
@@ -315,7 +336,6 @@ export function MarketOutcomesModal({
                         </div>
                       </div>
 
-                      {/* Outcome Stats */}
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-3 border-t border-border">
                         <div>
                           <span className="text-xs font-mono text-muted-foreground block mb-1">
@@ -366,7 +386,6 @@ export function MarketOutcomesModal({
                         )}
                       </div>
 
-                      {/* Progress Bar */}
                       <div className="mt-3 relative h-2 bg-muted overflow-hidden">
                         <div
                           className={`absolute inset-y-0 left-0 transition-all ${

@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
+import Link from "next/link";
 import {
   GammaEvent,
   gammaAPI,
@@ -10,9 +11,12 @@ import {
 } from "@/services/gamma";
 import { usePolymarketStore } from "@/store/usePolymarketStore";
 import { MarketOutcomes } from "@/components/markets/MarketOutcomes";
+import { MultiOutcomeBoard } from "@/components/markets/MultiOutcomeBoard";
+import { buildEventOutcomeSummary } from "@/lib/markets";
 import { ProfilePositionsModal } from "@/components/ProfilePositionsModal";
 import { MarketOutcomesModal } from "@/components/MarketOutcomesModal";
-import type { NormalizedMarket } from "@/types/markets";
+import { toSelectedMarketState } from "@/lib/marketSearch";
+import type { NormalizedMarket, EventOutcomeSummary } from "@/types/markets";
 import {
   Dialog,
   DialogContent,
@@ -73,10 +77,17 @@ export function MarketDetailModal({
   const searchParams = useSearchParams();
   const router = useRouter();
   const eventOutcomes = usePolymarketStore((state) => state.eventOutcomes);
-  const selectedMarketId = usePolymarketStore((state) => state.selectedMarket);
-  const setSelectedMarket = usePolymarketStore(
+  const selectedMarketState = usePolymarketStore(
+    (state) => state.selectedMarket,
+  );
+  const setGlobalSelectedMarket = usePolymarketStore(
     (state) => state.setSelectedMarket,
   );
+
+  // Local state for tracking which outcome is shown in detail view
+  const [localSelectedMarketId, setLocalSelectedMarketId] = useState<
+    string | null
+  >(selectedMarketState?.marketId || null);
 
   const normalizedMarkets = useMemo<NormalizedMarket[]>(() => {
     if (!market) return [];
@@ -87,9 +98,9 @@ export function MarketDetailModal({
 
   const normalizedMarket = useMemo<NormalizedMarket | null>(() => {
     if (!normalizedMarkets.length) return null;
-    if (selectedMarketId) {
+    if (localSelectedMarketId) {
       const match = normalizedMarkets.find(
-        (item) => item.id === selectedMarketId,
+        (item) => item.id === localSelectedMarketId,
       );
       if (match) return match;
     }
@@ -100,7 +111,26 @@ export function MarketDetailModal({
       if (match) return match;
     }
     return normalizedMarkets[0] ?? null;
-  }, [normalizedMarkets, selectedMarketId, searchParams]);
+  }, [normalizedMarkets, localSelectedMarketId, searchParams]);
+
+  // Build or retrieve event-level outcome summary for multi-outcome board
+  const eventSummary = useMemo<EventOutcomeSummary | null>(() => {
+    if (!market || !normalizedMarkets.length) return null;
+    const cached = eventOutcomes.get(market.id)?.summary;
+    if (cached) return cached;
+    const totalVolume = normalizedMarkets.reduce(
+      (sum, m) => sum + (m.volume ?? 0),
+      0,
+    );
+    const totalLiquidity = normalizedMarkets.reduce(
+      (sum, m) => sum + (m.liquidity ?? 0),
+      0,
+    );
+    return buildEventOutcomeSummary(String(market.id), normalizedMarkets, {
+      totalVolume,
+      totalLiquidity,
+    });
+  }, [market, normalizedMarkets, eventOutcomes]);
 
   // Fetch comments when modal opens or comments section is toggled
   useEffect(() => {
@@ -131,11 +161,12 @@ export function MarketDetailModal({
     }
   }, [open]);
 
+  // Reset local selection when modal closes
   useEffect(() => {
-    if (!open && selectedMarketId) {
-      setSelectedMarket(null);
+    if (!open && localSelectedMarketId) {
+      setLocalSelectedMarketId(null);
     }
-  }, [open, selectedMarketId, setSelectedMarket]);
+  }, [open, localSelectedMarketId]);
 
   useEffect(() => {
     if (!market || !open) return;
@@ -501,32 +532,44 @@ export function MarketDetailModal({
                   )}
                 </div>
               </div>
-              {/* Comments Toggle Button */}
-              <button
-                onClick={() => {
-                  setShowComments(!showComments);
-                  if (!showComments && comments.length === 0) {
-                    fetchComments();
-                  }
-                }}
-                className={`flex items-center gap-2 px-4 py-2 border font-mono text-sm transition-all duration-300 ${
-                  showComments
-                    ? "bg-primary text-primary-foreground border-primary hover:bg-primary/90"
-                    : "bg-card border-border hover:bg-muted"
-                }`}
-              >
-                <MessageSquare className="w-4 h-4" />
-                <span>{showComments ? "HIDE" : "SHOW"} COMMENTS</span>
-                <span
-                  className={`text-xs ${
+              <div className="flex items-center gap-2">
+                {/* View Market Focus Button */}
+                <Link
+                  href="/dashboard?tab=main&subtab=marketfocus"
+                  onClick={() => {
+                    // Set the selected market in the store
+                    if (normalizedMarket && market) {
+                      const selectedState = toSelectedMarketState(
+                        normalizedMarket,
+                        market,
+                      );
+                      setGlobalSelectedMarket(selectedState);
+                    }
+                    onOpenChange(false);
+                  }}
+                  className="flex items-center gap-2 px-4 py-2 border font-mono text-sm transition-colors bg-card border-border hover:bg-muted"
+                >
+                  <Activity className="w-4 h-4" />
+                  <span>MARKET FOCUS</span>
+                </Link>
+                {/* Comments Toggle Button */}
+                <button
+                  onClick={() => {
+                    setShowComments(!showComments);
+                    if (!showComments && comments.length === 0) {
+                      fetchComments();
+                    }
+                  }}
+                  className={`flex items-center gap-2 px-4 py-2 border font-mono text-sm transition-all duration-300 ${
                     showComments
-                      ? "text-primary-foreground/80"
-                      : "text-muted-foreground"
+                      ? "bg-primary text-primary-foreground border-primary hover:bg-primary/90"
+                      : "bg-card border-border hover:bg-muted"
                   }`}
                 >
-                  ({market.commentCount})
-                </span>
-              </button>
+                  <MessageSquare className="w-4 h-4" />
+                  <span>{showComments ? "HIDE" : "SHOW"} COMMENTS</span>
+                </button>
+              </div>
             </div>
           </DialogHeader>
 
@@ -715,74 +758,146 @@ export function MarketDetailModal({
                   </div>
                 )}
 
-                {/* Outcomes & Prices - Sticky and compact when comments shown */}
+                {/* Outcomes & Prices - Prefer multi-outcome board when available */}
                 {normalizedMarkets.length ? (
-                  <div
-                    className={`panel space-y-3 transition-all duration-300 ${
-                      showComments
-                        ? "sticky top-0 z-10 bg-card/95 backdrop-blur-sm shadow-md"
-                        : ""
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-3">
-                      <h3 className="text-sm font-mono font-bold flex items-center gap-2">
-                        <BarChart3 className="w-4 h-4" />
-                        OUTCOMES & PRICES
-                        {showComments && (
-                          <span className="text-xs font-normal text-muted-foreground">
-                            (Live)
-                          </span>
-                        )}
-                      </h3>
-                      {normalizedMarket &&
-                        normalizedMarket.type !== "binary" &&
-                        normalizedMarket.outcomes.length > 2 && (
-                          <button
-                            onClick={() => setOutcomesModalOpen(true)}
-                            className="text-xs font-mono text-primary hover:text-primary/80 transition-colors underline"
-                          >
-                            {showComments
-                              ? "All →"
-                              : `View All ${normalizedMarket.outcomes.length} Outcomes →`}
-                          </button>
-                        )}
-                    </div>
-                    <div className="space-y-2">
-                      {normalizedMarkets.map((marketOption) => (
+                  eventSummary?.isMultiOutcome ? (
+                    <div
+                      className={`panel space-y-3 transition-all duration-300 ${
+                        showComments
+                          ? "sticky top-0 z-0 bg-card/95 backdrop-blur-sm shadow-md"
+                          : ""
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-1">
+                        <h3 className="text-sm font-mono font-bold flex items-center gap-2">
+                          <BarChart3 className="w-4 h-4" />
+                          EVENT OUTCOMES
+                          {showComments && (
+                            <span className="text-xs font-normal text-muted-foreground">
+                              (Live)
+                            </span>
+                          )}
+                        </h3>
                         <button
-                          key={marketOption.id}
-                          onClick={() => setSelectedMarket(marketOption.id)}
-                          className={`text-left w-full transition-transform ${
-                            normalizedMarket?.id === marketOption.id
-                              ? "ring-1 ring-buy"
-                              : "hover:ring-1 hover:ring-border"
-                          }`}
+                          onClick={() => setOutcomesModalOpen(true)}
+                          className="text-xs font-mono text-primary hover:text-primary/80 transition-colors underline"
                         >
-                          {marketOption.primaryOutcome && (
-                            <div className="flex items-center justify-between px-3 py-1 border-b border-border/60 text-[11px] sm:text-xs font-mono bg-background/40">
-                              <span className="text-muted-foreground">
-                                {marketOption.primaryOutcome.name}
-                              </span>
-                              <span className="font-bold text-buy">
-                                {(
-                                  marketOption.primaryOutcome.probability * 100
-                                ).toFixed(1)}
-                                %
+                          View All →
+                        </button>
+                      </div>
+                      <MultiOutcomeBoard
+                        summary={eventSummary}
+                        markets={normalizedMarkets}
+                        onSelectOutcome={(marketId) => {
+                          // Update local detail view
+                          setLocalSelectedMarketId(marketId);
+
+                          // Set global selected market for data filtering
+                          const match = normalizedMarkets.find(
+                            (m) => m.id === marketId,
+                          );
+                          if (match && market) {
+                            const selectedState = toSelectedMarketState(
+                              match,
+                              market,
+                            );
+                            setGlobalSelectedMarket(selectedState);
+
+                            // Update URL
+                            if (match.slug) {
+                              const params = new URLSearchParams(
+                                searchParams?.toString() ?? "",
+                              );
+                              params.set("outcome", match.slug);
+                              router.replace(`?${params.toString()}`);
+                            }
+                          }
+                        }}
+                      />
+                    </div>
+                  ) : (
+                    <div
+                      className={`panel space-y-3 transition-all duration-300 ${
+                        showComments
+                          ? "sticky top-0 z-10 bg-card/95 backdrop-blur-sm shadow-md"
+                          : ""
+                      }`}
+                    >
+                      <div className="flex items-center justify-between mb-3">
+                        <h3 className="text-sm font-mono font-bold flex items-center gap-2">
+                          <BarChart3 className="w-4 h-4" />
+                          OUTCOMES & PRICES
+                          {showComments && (
+                            <span className="text-xs font-normal text-muted-foreground">
+                              (Live)
+                            </span>
+                          )}
+                        </h3>
+                        {normalizedMarket &&
+                          normalizedMarket.type !== "binary" &&
+                          normalizedMarket.outcomes.length > 2 && (
+                            <button
+                              onClick={() => setOutcomesModalOpen(true)}
+                              className="text-xs font-mono text-primary hover:text-primary/80 transition-colors underline"
+                            >
+                              {showComments
+                                ? "All →"
+                                : `View All ${normalizedMarket.outcomes.length} Outcomes →`}
+                            </button>
+                          )}
+                      </div>
+                      <div className="space-y-2">
+                        {normalizedMarkets.map((marketOption) => (
+                          <button
+                            key={marketOption.id}
+                            onClick={() => {
+                              // Update local detail view
+                              setLocalSelectedMarketId(marketOption.id);
+
+                              // Set global selected market for data filtering
+                              if (market) {
+                                const selectedState = toSelectedMarketState(
+                                  marketOption,
+                                  market,
+                                );
+                                setGlobalSelectedMarket(selectedState);
+                              }
+                            }}
+                            className={`text-left w-full transition-transform ${
+                              normalizedMarket?.id === marketOption.id
+                                ? "ring-1 ring-buy"
+                                : "hover:ring-1 hover:ring-border"
+                            }`}
+                          >
+                            {marketOption.primaryOutcome && (
+                              <div className="flex items-center justify-between px-3 py-1 border-b border-border/60 text-[11px] sm:text-xs font-mono bg-background/40">
+                                <span className="text-muted-foreground">
+                                  {marketOption.primaryOutcome.name}
+                                </span>
+                                <span className="font-bold text-buy">
+                                  {(
+                                    marketOption.primaryOutcome.probability *
+                                    100
+                                  ).toFixed(1)}
+                                  %
+                                </span>
+                              </div>
+                            )}
+                            <MarketOutcomes
+                              market={marketOption}
+                              hidePrimary={true}
+                            />
+                            <div className="flex justify-between mt-1 text-[10px] font-mono text-muted-foreground">
+                              <span>Condition: {marketOption.conditionId}</span>
+                              <span>
+                                YES: {marketOption.yesTokenId || "N/A"}
                               </span>
                             </div>
-                          )}
-                          <MarketOutcomes
-                            market={marketOption}
-                            hidePrimary={true}
-                          />
-                          <div className="flex justify-between mt-1 text-[10px] font-mono text-muted-foreground">
-                            <span>Condition: {marketOption.conditionId}</span>
-                            <span>YES: {marketOption.yesTokenId || "N/A"}</span>
-                          </div>
-                        </button>
-                      ))}
+                          </button>
+                        ))}
+                      </div>
                     </div>
-                  </div>
+                  )
                 ) : (
                   <div className="panel">
                     <h3 className="text-sm font-mono font-bold mb-3">
@@ -1087,7 +1202,8 @@ export function MarketDetailModal({
                   <div className="flex items-center justify-between mb-2">
                     <h3 className="text-sm font-mono font-bold flex items-center gap-2">
                       <MessageSquare className="w-4 h-4" />
-                      COMMENTS ({comments.length} / {market.commentCount})
+                      COMMENTS ({comments.length}
+                      {hasMoreComments ? "+" : ""})
                     </h3>
                   </div>
 
@@ -1243,6 +1359,8 @@ export function MarketDetailModal({
       {/* Market Outcomes Modal - Outside parent dialog */}
       <MarketOutcomesModal
         market={normalizedMarket}
+        markets={normalizedMarkets}
+        summary={eventSummary}
         open={outcomesModalOpen}
         onOpenChange={setOutcomesModalOpen}
       />

@@ -4,7 +4,11 @@ import {
   EventOutcomes,
   MarketType,
   PrimaryOutcome,
+  EventOutcomeRow,
+  EventOutcomeSummary,
+  OutcomeTier,
 } from "@/types/markets";
+import { filterNormalizedMarkets } from "@/lib/marketFilters";
 
 const randomId = (): string => {
   if (typeof globalThis === "object") {
@@ -20,6 +24,29 @@ const clampProbability = (value: number): number => {
   if (value < 0) return 0;
   if (value > 1) return 1;
   return value;
+};
+
+const FAVORITE_THRESHOLD = 0.1;
+const CONTENDER_THRESHOLD = 0.02;
+const PROBABILITY_WARNING_MIN = 0.95;
+const PROBABILITY_WARNING_MAX = 1.05;
+
+const toOddsText = (probability: number): string => {
+  if (!Number.isFinite(probability) || probability <= 0) {
+    return "—";
+  }
+  const odds = Math.max(1, Math.round(1 / probability));
+  return `1 in ${odds}`;
+};
+
+const assignOutcomeTier = (probability: number, rank: number): OutcomeTier => {
+  if (probability >= FAVORITE_THRESHOLD || rank <= 5) {
+    return "favorite";
+  }
+  if (probability >= CONTENDER_THRESHOLD) {
+    return "contender";
+  }
+  return "longshot";
 };
 
 const parseJsonArray = (raw: unknown): unknown[] => {
@@ -60,6 +87,8 @@ const parseMarketArrays = (raw: any) => {
         volume: token?.volume,
         liquidity: token?.liquidity,
         change24h: token?.change24h,
+        bestBid: token?.bestBid ?? token?.best_bid,
+        bestAsk: token?.bestAsk ?? token?.best_ask,
       }))
     : clobTokenIds.map((tokenId) => ({ tokenId }));
 
@@ -292,6 +321,8 @@ const normalizeOutcomes = (
       volume: token?.volume ? Number(token.volume) : undefined,
       liquidity: token?.liquidity ? Number(token.liquidity) : undefined,
       change24h: token?.change24h ? Number(token.change24h) : undefined,
+      bestBid: token?.bestBid ? Number(token.bestBid) : undefined,
+      bestAsk: token?.bestAsk ? Number(token.bestAsk) : undefined,
       lastUpdated: now,
     };
   });
@@ -425,6 +456,12 @@ export const normalizeMarketData = (
       ? (prices[yesOutcomeIndex] ?? prices[0] ?? 0)
       : (prices[1] ?? prices[0] ?? 0),
   );
+  const potentialProfit = clampProbability(1 - yesProbability);
+  const bestBid = parseNumber(raw.bestBid ?? raw.best_bid);
+  const bestAsk = parseNumber(raw.bestAsk ?? raw.best_ask);
+  const lastTradePrice = parseNumber(
+    raw.lastTradePrice ?? raw.last_trade_price ?? raw.last_price,
+  );
 
   const primaryOutcome: PrimaryOutcome | undefined = derivedName
     ? {
@@ -486,6 +523,10 @@ export const normalizeMarketData = (
     noTokenId,
     primaryOutcome,
     displayName: primaryOutcome?.name ?? undefined,
+    potentialProfit,
+    lastTradePrice,
+    bestBid,
+    bestAsk,
   };
 };
 
@@ -496,7 +537,7 @@ export const normalizeEventMarkets = (event: any): NormalizedMarket[] => {
 
   const totalOutcomes = event.markets.length;
 
-  return event.markets.map((market: any, index: number) =>
+  const normalizedMarkets = event.markets.map((market: any, index: number) =>
     normalizeMarketData(
       {
         ...market,
@@ -515,6 +556,138 @@ export const normalizeEventMarkets = (event: any): NormalizedMarket[] => {
       },
     ),
   );
+
+  // Apply filtering to remove markets with low liquidity/volume
+  return filterNormalizedMarkets(normalizedMarkets);
+};
+
+const buildEventOutcomeRow = (
+  eventId: string,
+  market: NormalizedMarket,
+): EventOutcomeRow | null => {
+  const primary = market.primaryOutcome;
+  if (!primary || !Number.isFinite(primary.probability)) {
+    return null;
+  }
+
+  const yesOutcome = market.outcomes.find((outcome) => {
+    if (market.yesTokenId && outcome.tokenId) {
+      return outcome.tokenId === market.yesTokenId;
+    }
+    return outcome.name.toLowerCase() === primary.name.toLowerCase();
+  });
+
+  const baseProbability = clampProbability(
+    yesOutcome?.probability ?? primary.probability ?? 0,
+  );
+  const bestYesAsk = yesOutcome?.bestAsk ?? market.bestAsk;
+  const bestYesBid = yesOutcome?.bestBid ?? market.bestBid;
+  const probability = clampProbability(
+    bestYesAsk ?? yesOutcome?.price ?? baseProbability,
+  );
+  const price = probability;
+  const potentialProfit = clampProbability(1 - probability);
+  const change24h = yesOutcome?.change24h;
+  const volume = yesOutcome?.volume ?? market.volume;
+  const liquidity = yesOutcome?.liquidity ?? market.liquidity;
+  const lastUpdated = yesOutcome?.lastUpdated ?? market.lastUpdated;
+  const bestNoAsk =
+    bestYesBid !== undefined
+      ? clampProbability(1 - clampProbability(bestYesBid))
+      : undefined;
+  const bestNoBid =
+    bestYesAsk !== undefined
+      ? clampProbability(1 - clampProbability(bestYesAsk))
+      : undefined;
+  const changeAbs = change24h;
+  const changePct = change24h !== undefined ? change24h * 100 : undefined;
+  const volume24h = volume;
+  const lastQuoteAt = lastUpdated;
+
+  const name = primary.name || market.displayName || market.title;
+  const oddsText = toOddsText(probability);
+
+  return {
+    eventId,
+    marketId: market.id,
+    conditionId: market.conditionId,
+    slug: market.slug,
+    name,
+    probability,
+    price,
+    potentialProfit,
+    oddsText,
+    change24h,
+    volume,
+    liquidity,
+    yesTokenId: market.yesTokenId,
+    noTokenId: market.noTokenId,
+    bestYesBid,
+    bestYesAsk,
+    bestNoBid,
+    bestNoAsk,
+    volume24h,
+    changeAbs,
+    changePct,
+    lastQuoteAt,
+    rank: 0,
+    tier: "longshot",
+    lastUpdated,
+  };
+};
+
+export const buildEventOutcomeSummary = (
+  eventId: string,
+  markets: NormalizedMarket[],
+  totals: { totalVolume?: number; totalLiquidity?: number },
+): EventOutcomeSummary => {
+  const rows = markets
+    .map((market) => buildEventOutcomeRow(eventId, market))
+    .filter((row): row is EventOutcomeRow => Boolean(row));
+
+  const ranked = rows
+    .sort((a, b) => {
+      if (b.probability === a.probability) {
+        return a.name.localeCompare(b.name);
+      }
+      return b.probability - a.probability;
+    })
+    .map((row, index) => ({
+      ...row,
+      rank: index + 1,
+      tier: assignOutcomeTier(row.probability, index + 1),
+    }));
+
+  const totalOutcomes = ranked.length;
+  const favorites = ranked.filter((row) => row.tier === "favorite");
+  const contenders = ranked.filter((row) => row.tier === "contender");
+  const longshots = ranked.filter((row) => row.tier === "longshot");
+  const lastPriceUpdateAt = ranked.reduce(
+    (latest, row) => Math.max(latest, row.lastUpdated ?? 0),
+    0,
+  );
+
+  const isMultiOutcome =
+    markets.length > 2 ||
+    markets.some((market) => (market.totalOutcomes ?? markets.length) > 2);
+
+  return {
+    eventId,
+    isMultiOutcome,
+    totalOutcomes,
+    rankedOutcomes: ranked,
+    favorites,
+    contenders,
+    longshots,
+    topOutcome: ranked[0],
+    updatedAt: Date.now(),
+    totalVolume: totals.totalVolume,
+    totalLiquidity: totals.totalLiquidity,
+    lastPriceUpdateAt: lastPriceUpdateAt || undefined,
+    timeframe: "1D",
+    infoNote:
+      "Prices reflect best YES asks; independent markets may not sum to 100%.",
+  };
 };
 
 export const normalizeEventPrimaryMarket = (
@@ -537,11 +710,16 @@ export const buildEventOutcomes = (event: any): EventOutcomes | null => {
     (sum, market) => sum + (market.liquidity ?? 0),
     0,
   );
+  const eventId = String(
+    event.id ?? event.slug ?? markets[0]?.eventId ?? randomId(),
+  );
+  const summary = buildEventOutcomeSummary(eventId, markets, {
+    totalVolume,
+    totalLiquidity,
+  });
 
   return {
-    eventId: String(
-      event.id ?? event.slug ?? markets[0]?.eventId ?? randomId(),
-    ),
+    eventId,
     title: safeString(
       event.title ?? event.ticker ?? markets[0]?.title ?? "Untitled",
     ),
@@ -551,5 +729,6 @@ export const buildEventOutcomes = (event: any): EventOutcomes | null => {
     totalLiquidity,
     updatedAt: Date.now(),
     negRisk: Boolean(event.enableNegRisk ?? event.negRisk),
+    summary,
   };
 };

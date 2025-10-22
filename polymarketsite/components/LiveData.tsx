@@ -16,11 +16,17 @@ export function LiveData() {
   const allTrades = usePolymarketStore((state) => state.trades);
   const orderbookDepth = usePolymarketStore((state) => state.orderbookDepth);
   const selectedMarket = usePolymarketStore((state) => state.selectedMarket);
+  const connected = usePolymarketStore((state) => state.connected);
+  const error = usePolymarketStore((state) => state.error);
 
   // Get current orderbook levels count
   const orderbookLevels = useMemo(() => {
     if (!selectedMarket) return { bids: 0, asks: 0 };
-    const depth = orderbookDepth.get(selectedMarket);
+    // Extract token ID from selectedMarket
+    const tokenId =
+      selectedMarket.clobTokenIds?.[0] || selectedMarket.yesTokenId;
+    if (!tokenId) return { bids: 0, asks: 0 };
+    const depth = orderbookDepth.get(tokenId);
     if (!depth) return { bids: 0, asks: 0 };
 
     // Apply filters to orderbook
@@ -145,6 +151,22 @@ export function LiveData() {
 
   return (
     <div className="flex flex-col h-full min-h-0 gap-4">
+      {/* Subtle error indicator */}
+      {!connected && error && (
+        <div className="bg-destructive/10 border border-destructive/20 rounded-md p-3 text-sm text-destructive flex items-center justify-between">
+          <span>
+            Live data unavailable:{" "}
+            {error.includes("1006") ? "Network connection lost" : error}
+          </span>
+          <button
+            onClick={() => window.location.reload()}
+            className="text-xs bg-destructive/20 hover:bg-destructive/30 px-2 py-1 rounded transition-colors"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
       {/* Advanced Filters */}
       <LiveDataFilters
         filters={filters}

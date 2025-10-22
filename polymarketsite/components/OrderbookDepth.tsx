@@ -43,7 +43,10 @@ export function OrderbookDepth({
   // Hide filters when using override
   const hideFilters = !!overrideFilters;
 
-  const currentTokenId = tokenId || selectedMarket;
+  // Extract token ID from selectedMarket if it's a SelectedMarketState object
+  const selectedTokenId =
+    selectedMarket?.clobTokenIds?.[0] || selectedMarket?.yesTokenId;
+  const currentTokenId = tokenId || selectedTokenId;
   const depth = currentTokenId ? orderbookDepth.get(currentTokenId) : undefined;
   const metadata = depth?.market ? marketMetadata.get(depth.market) : undefined;
 

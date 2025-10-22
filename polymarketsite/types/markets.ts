@@ -9,6 +9,8 @@ export interface Outcome {
   liquidity?: number;
   lastUpdated?: number;
   change24h?: number;
+  bestBid?: number;
+  bestAsk?: number;
 }
 
 export interface PrimaryOutcome {
@@ -57,10 +59,59 @@ export interface NormalizedMarket {
   lastTradePrice?: number;
   bestBid?: number;
   bestAsk?: number;
+  potentialProfit?: number;
 }
 
 export interface EventOutcomeMetadata {
   conditionId?: string;
+}
+
+export type OutcomeTier = "favorite" | "contender" | "longshot";
+export type OutcomeTimeframe = "1H" | "6H" | "1D" | "1W" | "1M" | "ALL";
+
+export interface EventOutcomeRow {
+  eventId: string;
+  marketId: string;
+  conditionId?: string;
+  slug?: string;
+  name: string;
+  probability: number;
+  price: number;
+  potentialProfit: number;
+  oddsText: string;
+  change24h?: number;
+  volume?: number;
+  liquidity?: number;
+  yesTokenId?: string;
+  noTokenId?: string;
+  bestYesBid?: number;
+  bestYesAsk?: number;
+  bestNoBid?: number;
+  bestNoAsk?: number;
+  volume24h?: number;
+  changeAbs?: number;
+  changePct?: number;
+  lastQuoteAt?: number;
+  rank: number;
+  tier: OutcomeTier;
+  lastUpdated: number;
+}
+
+export interface EventOutcomeSummary {
+  eventId: string;
+  isMultiOutcome: boolean;
+  totalOutcomes: number;
+  rankedOutcomes: EventOutcomeRow[];
+  favorites: EventOutcomeRow[];
+  contenders: EventOutcomeRow[];
+  longshots: EventOutcomeRow[];
+  topOutcome?: EventOutcomeRow;
+  updatedAt: number;
+  totalVolume?: number;
+  totalLiquidity?: number;
+  lastPriceUpdateAt?: number;
+  timeframe: OutcomeTimeframe;
+  infoNote?: string;
 }
 
 export interface EventOutcomes {
@@ -72,4 +123,5 @@ export interface EventOutcomes {
   totalLiquidity?: number;
   updatedAt: number;
   negRisk?: boolean;
+  summary?: EventOutcomeSummary;
 }

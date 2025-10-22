@@ -12,6 +12,7 @@ import {
 import {
   useActivityTracker,
   formatTradesPerMinute,
+  formatEventsPerMinute,
   formatCalibrationProgress,
 } from "@/hooks/useActivityTracker";
 
@@ -113,10 +114,13 @@ export function GlobalBusynessIndicator() {
   const {
     tradesPerMinute,
     totalTrades,
+    eventsPerMinute,
+    totalEvents,
     isCalibrated,
     calibrationProgress,
     elapsedSeconds,
     lastTradeTime,
+    lastEventTime,
   } = useActivityTracker();
 
   // Force re-render every second for live updates
@@ -144,9 +148,10 @@ export function GlobalBusynessIndicator() {
   const vs24hLevel = getBusynessLevel(busyness.vs24h.ratio);
   const vs7dLevel = getBusynessLevel(busyness.vs7d.ratio);
 
-  // Calculate seconds since last trade
+  // Calculate seconds since last trade and event
   const now = Date.now();
   const secondsSinceLastTrade = Math.floor((now - lastTradeTime) / 1000);
+  const secondsSinceLastEvent = Math.floor((now - lastEventTime) / 1000);
 
   return (
     <TooltipProvider delayDuration={0}>
@@ -229,6 +234,56 @@ export function GlobalBusynessIndicator() {
                   <div className="h-1 bg-border rounded-full overflow-hidden">
                     <div
                       className="h-full bg-blue-500 transition-all duration-300"
+                      style={{ width: `${calibrationProgress * 100}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Local Events Per Minute (Live) */}
+            <div className="space-y-1 bg-secondary/30 rounded p-2 border-l-2 border-green-500">
+              <div className="flex items-center justify-between">
+                <div className="text-[10px] font-mono text-muted-foreground uppercase tracking-wide">
+                  Active Markets/Min:
+                </div>
+                <div className="h-1 w-1 rounded-full bg-green-500 animate-pulse" />
+              </div>
+              <div className="flex items-baseline gap-2">
+                <div className="text-sm font-mono font-bold text-foreground">
+                  {isCalibrated ? (
+                    <>
+                      {formatEventsPerMinute(eventsPerMinute)}{" "}
+                      <span className="text-muted-foreground text-xs">
+                        markets
+                      </span>
+                    </>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">
+                      Calibrating...{" "}
+                      {formatCalibrationProgress(calibrationProgress)}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center justify-between text-[10px] font-mono text-muted-foreground">
+                <span>Active markets: {totalEvents.toLocaleString()}</span>
+                <span className="text-[9px]">
+                  {secondsSinceLastEvent === 0
+                    ? "just now"
+                    : secondsSinceLastEvent < 60
+                      ? `${secondsSinceLastEvent}s ago`
+                      : `${Math.floor(secondsSinceLastEvent / 60)}m ago`}
+                </span>
+              </div>
+              <div className="text-[10px] font-mono text-muted-foreground">
+                Tracking for: {elapsedSeconds}s
+              </div>
+              {!isCalibrated && (
+                <div className="mt-1">
+                  <div className="h-1 bg-border rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-green-500 transition-all duration-300"
                       style={{ width: `${calibrationProgress * 100}%` }}
                     />
                   </div>

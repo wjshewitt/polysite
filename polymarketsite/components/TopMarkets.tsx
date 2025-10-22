@@ -8,8 +8,10 @@ import { MarketDetailModal } from "@/components/MarketDetailModal";
 import { usePolymarketStore } from "@/store/usePolymarketStore";
 import { formatUSD, getUSDEquivalent } from "@/lib/crypto";
 import { MarketOutcomes } from "@/components/markets/MarketOutcomes";
+import type { EventOutcomeSummary, EventOutcomeRow } from "@/types/markets";
 import { buildEventOutcomes } from "@/lib/markets";
 import type { EventOutcomes } from "@/types/markets";
+import { toSelectedMarketState } from "@/lib/marketSearch";
 import { TrendingUp, DollarSign, Users } from "lucide-react";
 
 export function TopMarkets() {
@@ -31,6 +33,9 @@ export function TopMarkets() {
   );
   const eventOutcomesFromStore = usePolymarketStore(
     (state) => state.eventOutcomes,
+  );
+  const setGlobalSelectedMarket = usePolymarketStore(
+    (state) => state.setSelectedMarket,
   );
   useEffect(() => {
     const params = new URLSearchParams(searchParams?.toString() ?? "");
@@ -60,7 +65,11 @@ export function TopMarkets() {
           );
           if (matchedOutcome) {
             // pass via store selection for modal consumption
-            usePolymarketStore.getState().setSelectedMarket(matchedOutcome.id);
+            const selectedState = toSelectedMarketState(
+              matchedOutcome,
+              eventMatch,
+            );
+            usePolymarketStore.getState().setSelectedMarket(selectedState);
           }
         }
       }
@@ -99,7 +108,7 @@ export function TopMarkets() {
         setMarkets(events);
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : String(err);
-        console.error(
+        console.warn(
           "[TopMarkets] Error fetching markets:",
           errorMessage,
           err,
@@ -141,8 +150,23 @@ export function TopMarkets() {
   };
 
   const handleMarketClick = (market: GammaEvent) => {
+    // Set local state for modal
     setSelectedMarket(market);
     setModalOpen(true);
+
+    // Set global selected market (for filtering data site-wide)
+    if (market.markets.length > 0) {
+      const normalizedMarkets = gammaAPI.getNormalizedMarketsFromEvent(market);
+      if (normalizedMarkets.length > 0) {
+        const selectedState = toSelectedMarketState(
+          normalizedMarkets[0],
+          market,
+        );
+        setGlobalSelectedMarket(selectedState);
+      }
+    }
+
+    // Update URL
     if (market.slug) {
       const params = new URLSearchParams(searchParams?.toString() ?? "");
       params.set("event", market.slug);
@@ -331,15 +355,108 @@ export function TopMarkets() {
                     )}
                   </div>
 
-                  {/* Outcomes */}
-                  {eventMarkets.length ? (
+                  {/* Outcomes: prefer compact multi-outcome summary when available */}
+                  {outcomes?.summary?.isMultiOutcome ? (
+                    (() => {
+                      const summary = outcomes.summary as EventOutcomeSummary;
+                      const rows = (summary.rankedOutcomes || []).slice(0, 3);
+                      const maxProb = rows.reduce(
+                        (m, r) => (r.probability > m ? r.probability : m),
+                        0,
+                      );
+                      const onRowClick = (row: EventOutcomeRow) => {
+                        try {
+                          const state = usePolymarketStore.getState();
+                          const params = new URLSearchParams(
+                            searchParams?.toString() ?? "",
+                          );
+                          if (event.slug) params.set("event", event.slug);
+                          // Try to find the outcome slug in hydrated markets
+                          const hydrated = eventOutcomeMap.get(event.id);
+                          const match = hydrated?.markets.find(
+                            (m) => m.id === row.marketId,
+                          );
+                          if (match) {
+                            // Create SelectedMarketState from match and event
+                            const selectedState = toSelectedMarketState(
+                              match,
+                              event,
+                            );
+                            state.setSelectedMarket(selectedState);
+                            if (match.slug) params.set("outcome", match.slug);
+                          }
+                          router.replace(`?${params.toString()}`);
+                          setSelectedMarket(event);
+                          setModalOpen(true);
+                        } catch (e) {
+                          console.error("TopMarkets row click error", e);
+                        }
+                      };
+
+                      return (
+                        <div className="mb-2 space-y-1">
+                          {rows.map((row) => {
+                            const width = maxProb
+                              ? (row.probability / maxProb) * 100
+                              : 0;
+                            const tierColor =
+                              row.tier === "favorite"
+                                ? "bg-buy/20"
+                                : row.tier === "contender"
+                                  ? "bg-neutral/20"
+                                  : "bg-muted";
+                            const textColor =
+                              row.tier === "favorite"
+                                ? "text-buy"
+                                : row.tier === "contender"
+                                  ? "text-neutral"
+                                  : "text-foreground";
+                            return (
+                              <button
+                                key={`${row.marketId}-${row.rank}`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onRowClick(row);
+                                }}
+                                className="relative w-full text-left border border-border bg-card px-2 py-1 overflow-hidden hover:bg-muted/50 transition-colors"
+                              >
+                                <div
+                                  className={`absolute inset-y-0 left-0 ${tierColor}`}
+                                  style={{ width: `${width}%` }}
+                                />
+                                <div className="relative z-10 flex items-center justify-between gap-2 text-[11px] sm:text-xs">
+                                  <div className="flex items-center gap-2 min-w-0">
+                                    <span className="text-muted-foreground font-mono">
+                                      #{row.rank}
+                                    </span>
+                                    <span
+                                      className={`font-mono font-semibold truncate ${textColor}`}
+                                    >
+                                      {row.name}
+                                    </span>
+                                  </div>
+                                  <div className="font-mono font-bold">
+                                    {(row.probability * 100).toFixed(1)}%
+                                  </div>
+                                </div>
+                              </button>
+                            );
+                          })}
+                          {summary.totalOutcomes > rows.length && (
+                            <div className="text-[10px] sm:text-xs font-mono text-muted-foreground">
+                              +{summary.totalOutcomes - rows.length} more
+                              outcomes
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()
+                  ) : eventMarkets.length ? (
                     <div className="mb-2 space-y-2">
                       {eventMarkets.slice(0, 4).map((marketData) => {
-                        // For multi-outcome markets, hide No bars
                         const isMultiOutcome =
                           marketData.type === "multi" ||
                           eventMarkets.length > 1;
-
                         return (
                           <div
                             key={marketData.id}

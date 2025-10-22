@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { AppShell } from "@/components/AppShell";
 import { MarketVolumeChart } from "@/components/dataviz/MarketVolumeChart";
 import { MarketHeatmap } from "@/components/dataviz/MarketHeatmap";
 import { VolumeDistribution } from "@/components/dataviz/VolumeDistribution";
@@ -66,8 +67,9 @@ export default function DataVizPage() {
   ];
 
   return (
-    <main className="min-h-screen bg-background p-4">
-      <div className="max-w-[1600px] mx-auto">
+    <AppShell>
+      <main className="min-h-[calc(100vh-4rem)] bg-background p-4">
+        <div className="max-w-[1600px] mx-auto">
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-4xl font-mono font-bold tracking-tight text-neutral mb-2">
@@ -164,13 +166,14 @@ export default function DataVizPage() {
           </div>
         </div>
 
-        {/* Footer */}
-        <div className="mt-8 panel text-center">
-          <p className="text-xs font-mono text-muted-foreground">
-            Live data from Polymarket Gamma API • Updates automatically
-          </p>
+          {/* Footer */}
+          <div className="mt-8 panel text-center">
+            <p className="text-xs font-mono text-muted-foreground">
+              Live data from Polymarket Gamma API • Updates automatically
+            </p>
+          </div>
         </div>
-      </div>
-    </main>
+      </main>
+    </AppShell>
   );
 }
