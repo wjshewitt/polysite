@@ -7,8 +7,72 @@ import {
   EventOutcomeRow,
   EventOutcomeSummary,
   OutcomeTier,
+  PriceSource,
 } from "@/types/markets";
 import { filterNormalizedMarkets } from "@/lib/marketFilters";
+
+interface PriceCalculationResult {
+  displayPrice: number;
+  source: PriceSource;
+  spread: number;
+  bestBid: number | null;
+  bestAsk: number | null;
+  lastTradedPrice: number | null;
+  spreadWarning: boolean;
+  impliedProbability: number;
+}
+
+function calculateDisplayPrice(
+  bestBid: number | null,
+  bestAsk: number | null,
+  lastTradedPrice: number | null,
+): PriceCalculationResult {
+  const source: PriceSource = "fallback";
+
+  // Validation
+  if (bestBid === null || bestAsk === null || bestBid >= bestAsk) {
+    const price = lastTradedPrice || 0.5;
+    return {
+      displayPrice: price,
+      source: "fallback",
+      spread: 0,
+      bestBid,
+      bestAsk,
+      lastTradedPrice,
+      spreadWarning: false,
+      impliedProbability: price,
+    };
+  }
+
+  const midpoint = (bestBid + bestAsk) / 2;
+  const absoluteSpread = bestAsk - bestBid;
+
+  // Apply $0.10 threshold rule
+  if (absoluteSpread > 0.1) {
+    return {
+      displayPrice: lastTradedPrice || midpoint,
+      source: lastTradedPrice ? "last_trade" : "midpoint",
+      spread: absoluteSpread,
+      bestBid,
+      bestAsk,
+      lastTradedPrice,
+      spreadWarning: true,
+      impliedProbability: midpoint,
+    };
+  }
+
+  // Normal case: use midpoint
+  return {
+    displayPrice: midpoint,
+    source: "midpoint",
+    spread: absoluteSpread,
+    bestBid,
+    bestAsk,
+    lastTradedPrice,
+    spreadWarning: false,
+    impliedProbability: midpoint,
+  };
+}
 
 const randomId = (): string => {
   if (typeof globalThis === "object") {
@@ -307,22 +371,38 @@ const normalizeOutcomes = (
   const { tokens } = parseMarketArrays(raw);
 
   const normalized: Outcome[] = outcomes.map((name, index) => {
-    const price = clampProbability(prices[index] ?? 0);
     const token = tokens[index] ?? {};
     const lowerName = name.toLowerCase();
     const resolvedName =
       derivedYesName && lowerName === "yes" ? derivedYesName : name;
 
+    const bestBid = token?.bestBid ? Number(token.bestBid) : null;
+    const bestAsk = token?.bestAsk ? Number(token.bestAsk) : null;
+    const lastTradedPrice = raw.lastTradePrice
+      ? Number(raw.lastTradePrice)
+      : null;
+
+    const priceResult = calculateDisplayPrice(
+      bestBid,
+      bestAsk,
+      lastTradedPrice,
+    );
+
     return {
       name: resolvedName,
-      price,
-      probability: price,
+      price: priceResult.displayPrice,
+      probability: priceResult.impliedProbability,
+      impliedProbability: priceResult.impliedProbability,
+      lastTradedPrice: priceResult.lastTradedPrice,
+      priceSource: priceResult.source,
+      spread: priceResult.spread,
+      spreadWarning: priceResult.spreadWarning,
+      bestBid: priceResult.bestBid,
+      bestAsk: priceResult.bestAsk,
       tokenId: token?.tokenId || token?.token_id || undefined,
       volume: token?.volume ? Number(token.volume) : undefined,
       liquidity: token?.liquidity ? Number(token.liquidity) : undefined,
       change24h: token?.change24h ? Number(token.change24h) : undefined,
-      bestBid: token?.bestBid ? Number(token.bestBid) : undefined,
-      bestAsk: token?.bestAsk ? Number(token.bestAsk) : undefined,
       lastUpdated: now,
     };
   });
@@ -695,6 +775,230 @@ export const normalizeEventPrimaryMarket = (
 ): NormalizedMarket | null => {
   const [market] = normalizeEventMarkets(event);
   return market ?? null;
+};
+
+export interface EventStatistics {
+  eventId: string;
+  totalVolume: number;
+  totalLiquidity: number;
+  weightedAvgProbability: number;
+  totalTrades: number;
+  buyVolume: number;
+  sellVolume: number;
+  marketCount: number;
+  activeMarkets: number;
+  mostActiveMarket: {
+    marketId: string;
+    name: string;
+    volume: number;
+  } | null;
+  volumeDistribution: Array<{
+    marketId: string;
+    name: string;
+    volume: number;
+    percentage: number;
+  }>;
+  probabilityDistribution: Array<{
+    marketId: string;
+    name: string;
+    probability: number;
+  }>;
+  avgSpread: number;
+  priceChange1h: number;
+  lastUpdated: number;
+}
+
+export const calculateEventStatistics = (
+  eventId: string,
+  markets: NormalizedMarket[],
+  trades: any[],
+  orderbookDepth: Map<string, any>,
+  oneHourAgo: number = Date.now() - 60 * 60 * 1000,
+): EventStatistics => {
+  let totalVolume = 0;
+  let totalLiquidity = 0;
+  let weightedProbSum = 0;
+  let totalWeight = 0;
+  let totalTrades = 0;
+  let buyVolume = 0;
+  let sellVolume = 0;
+  let activeMarkets = 0;
+  let totalSpread = 0;
+  let spreadCount = 0;
+  let mostActiveMarket: {
+    marketId: string;
+    name: string;
+    volume: number;
+  } | null = null;
+  let maxMarketVolume = 0;
+
+  const recentTrades = trades.filter((t) => t.timestamp > oneHourAgo);
+
+  // Calculate volume and liquidity totals
+  markets.forEach((market) => {
+    const marketVolume = market.volume || 0;
+    const marketLiquidity = market.liquidity || 0;
+
+    totalVolume += marketVolume;
+    totalLiquidity += marketLiquidity;
+
+    if (marketVolume > 0) activeMarkets++;
+
+    if (marketVolume > maxMarketVolume) {
+      maxMarketVolume = marketVolume;
+      mostActiveMarket = {
+        marketId: market.id,
+        name: market.displayName || market.title,
+        volume: marketVolume,
+      };
+    }
+
+    // Weighted probability calculation
+    const outcome = market.primaryOutcome || market.outcomes[0];
+    if (outcome && Number.isFinite(outcome.probability)) {
+      weightedProbSum += outcome.probability * marketVolume;
+      totalWeight += marketVolume;
+    }
+
+    // Spread calculation
+    const tokenId = market.clobTokenIds?.[0] || market.yesTokenId;
+    if (tokenId) {
+      const depth = orderbookDepth.get(tokenId);
+      if (depth && depth.bids?.length > 0 && depth.asks?.length > 0) {
+        const bestBid = parseFloat(depth.bids[0].price);
+        const bestAsk = parseFloat(depth.asks[0].price);
+        if (bestBid > 0 && bestAsk > bestBid) {
+          const midpoint = (bestBid + bestAsk) / 2;
+          const spread = ((bestAsk - bestBid) / midpoint) * 100;
+          totalSpread += spread;
+          spreadCount++;
+        }
+      }
+    }
+  });
+
+  // Calculate trade statistics
+  const marketTradeMap = new Map<
+    string,
+    { volume: number; buyVol: number; sellVol: number; count: number }
+  >();
+
+  markets.forEach((market) => {
+    const marketStats = { volume: 0, buyVol: 0, sellVol: 0, count: 0 };
+    marketTradeMap.set(market.id, marketStats);
+
+    // Check multiple possible identifiers for trades
+    const possibleIds = [
+      market.conditionId,
+      market.id,
+      market.yesTokenId,
+      market.noTokenId,
+      ...(market.clobTokenIds || []),
+    ];
+
+    recentTrades.forEach((trade) => {
+      if (
+        possibleIds.includes(trade.market) ||
+        possibleIds.includes(trade.asset)
+      ) {
+        const tradeSize = parseFloat(trade.price) * parseFloat(trade.size);
+        marketStats.volume += tradeSize;
+        marketStats.count++;
+
+        if (trade.side === "BUY") {
+          marketStats.buyVol += tradeSize;
+        } else {
+          marketStats.sellVol += tradeSize;
+        }
+      }
+    });
+
+    totalTrades += marketStats.count;
+    buyVolume += marketStats.buyVol;
+    sellVolume += marketStats.sellVol;
+  });
+
+  // Calculate 1h price change
+  const oldTrades = trades.filter((t) => t.timestamp <= oneHourAgo);
+  const currentPrice = weightedProbSum / totalWeight || 0;
+  let oldPrice = currentPrice;
+
+  if (oldTrades.length > 0 && totalWeight > 0) {
+    let oldWeightedSum = 0;
+    let oldTotalWeight = 0;
+
+    markets.forEach((market) => {
+      const possibleIds = [
+        market.conditionId,
+        market.id,
+        market.yesTokenId,
+        market.noTokenId,
+        ...(market.clobTokenIds || []),
+      ];
+
+      const marketOldTrades = oldTrades.filter(
+        (trade) =>
+          possibleIds.includes(trade.market) ||
+          possibleIds.includes(trade.asset),
+      );
+
+      if (marketOldTrades.length > 0) {
+        const lastOldTrade = marketOldTrades[marketOldTrades.length - 1];
+        const marketVolume = market.volume || 0;
+        oldWeightedSum += parseFloat(lastOldTrade.price) * marketVolume;
+        oldTotalWeight += marketVolume;
+      }
+    });
+
+    if (oldTotalWeight > 0) {
+      oldPrice = oldWeightedSum / oldTotalWeight;
+    }
+  }
+
+  const priceChange1h =
+    oldPrice > 0 ? ((currentPrice - oldPrice) / oldPrice) * 100 : 0;
+
+  // Volume distribution
+  const volumeDistribution = markets
+    .filter((m) => m.volume && m.volume > 0)
+    .map((market) => ({
+      marketId: market.id,
+      name: market.displayName || market.title,
+      volume: market.volume || 0,
+      percentage:
+        totalVolume > 0 ? ((market.volume || 0) / totalVolume) * 100 : 0,
+    }))
+    .sort((a, b) => b.volume - a.volume);
+
+  // Probability distribution
+  const probabilityDistribution = markets
+    .map((market) => {
+      const outcome = market.primaryOutcome || market.outcomes[0];
+      return {
+        marketId: market.id,
+        name: market.displayName || market.title,
+        probability: outcome?.probability || 0,
+      };
+    })
+    .sort((a, b) => b.probability - a.probability);
+
+  return {
+    eventId,
+    totalVolume,
+    totalLiquidity,
+    weightedAvgProbability: totalWeight > 0 ? weightedProbSum / totalWeight : 0,
+    totalTrades,
+    buyVolume,
+    sellVolume,
+    marketCount: markets.length,
+    activeMarkets,
+    mostActiveMarket,
+    volumeDistribution,
+    probabilityDistribution,
+    avgSpread: spreadCount > 0 ? totalSpread / spreadCount : 0,
+    priceChange1h: isFinite(priceChange1h) ? priceChange1h : 0,
+    lastUpdated: Date.now(),
+  };
 };
 
 export const buildEventOutcomes = (event: any): EventOutcomes | null => {

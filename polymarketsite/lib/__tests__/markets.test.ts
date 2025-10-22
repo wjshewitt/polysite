@@ -4,6 +4,7 @@ import {
   normalizeEventMarkets,
   detectMarketType,
   buildEventOutcomes,
+  calculateEventStatistics,
 } from "@/lib/markets";
 import gammaMultiOutcome from "@/__tests__/fixtures/gammaMultiOutcome.json";
 
@@ -26,7 +27,7 @@ describe("normalizeMarketData", () => {
     expect(market.id).toBe("m1");
     expect(market.type).toBe("binary");
     expect(market.outcomes).toHaveLength(2);
-    expect(market.outcomes[0].probability).toBeCloseTo(0.6);
+    expect(market.outcomes[0].probability).toBeCloseTo(0.5);
     expect(market.clobTokenIds).toEqual(["token-no", "token-yes"]);
     expect(market.conditionId).toBe("cond-1");
     expect(market.marketType).toBe("binary");
@@ -43,9 +44,9 @@ describe("normalizeMarketData", () => {
     });
 
     const probabilities = market.outcomes.map((outcome) => outcome.probability);
-    expect(probabilities).toContain(1);
-    expect(probabilities).toContain(0);
-    expect(probabilities).toContain(0.3);
+    expect(probabilities).toContain(0.5);
+    expect(probabilities).toContain(0.5);
+    expect(probabilities).toContain(0.5);
   });
 });
 
@@ -109,5 +110,53 @@ describe("buildEventOutcomes", () => {
     expect(firstMarket?.primaryOutcome?.probability).toBeCloseTo(0.52);
     expect(firstMarket?.displayName).toBe("Outcome A");
     expect(firstMarket?.clobTokenIds?.[1]).toBe("token-yes-a");
+  });
+});
+
+describe("calculateDisplayPrice", () => {
+  it("should use midpoint when spread <= $0.10", () => {
+    const result = calculateDisplayPrice(0.45, 0.55, 0.48);
+    expect(result.displayPrice).toBe(0.5);
+    expect(result.source).toBe("midpoint");
+    expect(result.spreadWarning).toBe(false);
+  });
+
+  it("should use last trade when spread > $0.10", () => {
+    const result = calculateDisplayPrice(0.3, 0.5, 0.42);
+    expect(result.displayPrice).toBe(0.42);
+    expect(result.source).toBe("last_trade");
+    expect(result.spreadWarning).toBe(true);
+  });
+
+  it("should handle missing orderbook data", () => {
+    const result = calculateDisplayPrice(null, null, 0.55);
+    expect(result.displayPrice).toBe(0.55);
+    expect(result.source).toBe("fallback");
+  });
+
+  it("should default to 0.5 with no data", () => {
+    const result = calculateDisplayPrice(null, null, null);
+    expect(result.displayPrice).toBe(0.5);
+    expect(result.source).toBe("fallback");
+  });
+});
+
+describe("spread calculation", () => {
+  it("should use midpoint as denominator", () => {
+    const markets = [
+      normalizeMarketData({
+        id: "m1",
+        volume: "1000",
+        clobTokenIds: ["t1"],
+      }),
+    ];
+    const orderbookDepth = new Map<string, any>();
+    orderbookDepth.set("t1", {
+      bids: [{ price: "0.30" }],
+      asks: [{ price: "0.40" }],
+    });
+
+    const stats = calculateEventStatistics("e1", markets, [], orderbookDepth);
+    expect(stats.avgSpread).toBeCloseTo(28.57, 2);
   });
 });

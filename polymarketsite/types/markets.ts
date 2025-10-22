@@ -1,16 +1,32 @@
 export type MarketType = "binary" | "multi";
 
+export type PriceSource = "midpoint" | "last_trade" | "fallback";
+
 export interface Outcome {
   name: string;
+  // Display price (what users trade at)
   price: number;
-  probability: number;
+  // True market probability (always midpoint)
+  impliedProbability: number;
+  // Historical reference
+  lastTradedPrice: number | null;
+  // Metadata
+  priceSource: PriceSource;
+  spread: number;
+  spreadWarning: boolean;
+  // Orderbook depth
+  bestBid: number | null;
+  bestAsk: number | null;
+  // Legacy field (for backward compatibility)
+  probability: number; // Map to impliedProbability
+  // Timestamps
+  lastUpdated: number;
+  orderbookUpdated?: number;
+
   tokenId?: string;
   volume?: number;
   liquidity?: number;
-  lastUpdated?: number;
   change24h?: number;
-  bestBid?: number;
-  bestAsk?: number;
 }
 
 export interface PrimaryOutcome {

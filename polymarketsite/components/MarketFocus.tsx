@@ -8,12 +8,23 @@ import { formatUSD } from "@/lib/crypto";
 import { gammaAPI, type GammaEvent } from "@/services/gamma";
 import type { NormalizedMarket } from "@/types/markets";
 import { toSelectedMarketState } from "@/lib/marketSearch";
+import { calculateEventStatistics, type EventStatistics } from "@/lib/markets";
+import { fetchInitialPrices } from "@/lib/clob-api";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   TrendingUp,
   TrendingDown,
   DollarSign,
   Activity,
   ExternalLink,
+  AlertCircle,
 } from "lucide-react";
 
 export function MarketFocus() {
@@ -26,6 +37,8 @@ export function MarketFocus() {
     null,
   );
   const [fullEventData, setFullEventData] = useState<GammaEvent | null>(null);
+  const [eventStatistics, setEventStatistics] =
+    useState<EventStatistics | null>(null);
   const [loading, setLoading] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
 
@@ -163,7 +176,8 @@ export function MarketFocus() {
 
     const bestBid = parseFloat(depth.bids[0].price);
     const bestAsk = parseFloat(depth.asks[0].price);
-    const spread = ((bestAsk - bestBid) / bestBid) * 100;
+    const midpoint = (bestBid + bestAsk) / 2;
+    const spread = ((bestAsk - bestBid) / midpoint) * 100;
     const midPrice = (bestBid + bestAsk) / 2;
 
     return {
@@ -241,6 +255,44 @@ export function MarketFocus() {
     fetchMarketData();
   }, [selectedMarket, eventOutcomes]);
 
+  useEffect(() => {
+    const fetchPrices = async () => {
+      if (!selectedMarket || !selectedMarket.clobTokenIds) return;
+
+      const initialPrices = await fetchInitialPrices(
+        selectedMarket.clobTokenIds,
+      );
+
+      if (initialPrices && fullMarketData) {
+        const updatedOutcomes = fullMarketData.outcomes.map((outcome) => {
+          const priceData = initialPrices.find(
+            (p) => p.tokenId === outcome.tokenId,
+          );
+          if (priceData) {
+            return {
+              ...outcome,
+              price: priceData.displayPrice,
+              impliedProbability: priceData.impliedProbability,
+              priceSource: priceData.source,
+              spread: priceData.spread,
+              spreadWarning: priceData.spreadWarning,
+              bestBid: priceData.bestBid,
+              bestAsk: priceData.bestAsk,
+            };
+          }
+          return outcome;
+        });
+
+        setFullMarketData({
+          ...fullMarketData,
+          outcomes: updatedOutcomes,
+        });
+      }
+    };
+
+    fetchPrices();
+  }, [selectedMarket, fullMarketData]);
+
   // Check if this is an event-level view (multiple related markets in store)
   const relatedMarkets = useMemo(() => {
     if (!selectedMarket) return [];
@@ -254,6 +306,47 @@ export function MarketFocus() {
   }, [eventOutcomes, selectedMarket]);
 
   const isEventLevelView = relatedMarkets.length > 1;
+
+  // Calculate event statistics when in event-level view
+  useEffect(() => {
+    if (isEventLevelView && selectedMarket) {
+      const stats = calculateEventStatistics(
+        selectedMarket.eventId,
+        relatedMarkets,
+        allTrades,
+        orderbookDepth,
+      );
+      setEventStatistics(stats);
+    } else {
+      setEventStatistics(null);
+    }
+  }, [
+    isEventLevelView,
+    selectedMarket,
+    relatedMarkets,
+    allTrades,
+    orderbookDepth,
+  ]);
+
+  // Filter trades for event-level view (all markets in the event)
+  const eventTrades = useMemo(() => {
+    if (!isEventLevelView || !selectedMarket) return [];
+
+    const allEventMarketIds = relatedMarkets.flatMap((market) => [
+      market.conditionId,
+      market.id,
+      market.yesTokenId,
+      market.noTokenId,
+      ...(market.clobTokenIds || []),
+    ]);
+
+    return allTrades.filter((trade) => {
+      return (
+        allEventMarketIds.includes(trade.market) ||
+        allEventMarketIds.includes(trade.asset)
+      );
+    });
+  }, [isEventLevelView, selectedMarket, relatedMarkets, allTrades]);
 
   if (!selectedMarket) {
     return (
@@ -380,90 +473,344 @@ export function MarketFocus() {
         </div>
       )}
 
-      {/* Market Stats */}
+      {/* Market Statistics */}
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 flex-shrink-0">
-        {/* Last Price */}
-        <div className="panel">
-          <div className="text-xs font-mono text-muted-foreground mb-1">
-            LAST PRICE
-          </div>
-          <div className="text-lg font-mono font-bold text-foreground">
-            ${marketStats.lastPrice.toFixed(3)}
-          </div>
-        </div>
+        {isEventLevelView && eventStatistics ? (
+          // Event-level statistics
+          <>
+            {/* Markets Count */}
+            <div className="panel">
+              <div className="text-xs font-mono text-muted-foreground mb-1">
+                MARKETS
+              </div>
+              <div className="text-lg font-mono font-bold text-foreground">
+                {eventStatistics.activeMarkets}/{eventStatistics.marketCount}
+              </div>
+            </div>
 
-        {/* Price Change */}
-        <div className="panel">
-          <div className="text-xs font-mono text-muted-foreground mb-1">
-            1H CHANGE
-          </div>
-          <div
-            className={`text-lg font-mono font-bold flex items-center gap-1 ${
-              marketStats.priceChange >= 0 ? "text-buy" : "text-sell"
-            }`}
-          >
-            {marketStats.priceChange >= 0 ? (
-              <TrendingUp className="w-4 h-4" />
-            ) : (
-              <TrendingDown className="w-4 h-4" />
-            )}
-            {marketStats.priceChange >= 0 ? "+" : ""}
-            {marketStats.priceChange.toFixed(2)}%
-          </div>
-        </div>
+            {/* Weighted Avg Probability */}
+            <div className="panel">
+              <div className="text-xs font-mono text-muted-foreground mb-1">
+                AVG PROB
+              </div>
+              <div className="text-lg font-mono font-bold text-foreground">
+                {(eventStatistics.weightedAvgProbability * 100).toFixed(1)}%
+              </div>
+            </div>
 
-        {/* Total Volume */}
-        <div className="panel">
-          <div className="text-xs font-mono text-muted-foreground mb-1 flex items-center gap-1">
-            <DollarSign className="w-3 h-3" />
-            VOLUME
-          </div>
-          <div className="text-lg font-mono font-bold text-foreground">
-            {formatUSD(marketStats.totalVolume)}
-          </div>
-        </div>
+            {/* Price Change */}
+            <div className="panel">
+              <div className="text-xs font-mono text-muted-foreground mb-1">
+                1H CHANGE
+              </div>
+              <div
+                className={`text-lg font-mono font-bold flex items-center gap-1 ${
+                  eventStatistics.priceChange1h >= 0 ? "text-buy" : "text-sell"
+                }`}
+              >
+                {eventStatistics.priceChange1h >= 0 ? (
+                  <TrendingUp className="w-4 h-4" />
+                ) : (
+                  <TrendingDown className="w-4 h-4" />
+                )}
+                {eventStatistics.priceChange1h >= 0 ? "+" : ""}
+                {eventStatistics.priceChange1h.toFixed(2)}%
+              </div>
+            </div>
 
-        {/* Trade Count */}
-        <div className="panel">
-          <div className="text-xs font-mono text-muted-foreground mb-1 flex items-center gap-1">
-            <Activity className="w-3 h-3" />
-            TRADES
-          </div>
-          <div className="text-lg font-mono font-bold text-foreground">
-            {marketStats.tradeCount}
-          </div>
-        </div>
+            {/* Total Volume */}
+            <div className="panel">
+              <div className="text-xs font-mono text-muted-foreground mb-1 flex items-center gap-1">
+                <DollarSign className="w-3 h-3" />
+                VOLUME
+              </div>
+              <div className="text-lg font-mono font-bold text-foreground">
+                {formatUSD(eventStatistics.totalVolume)}
+              </div>
+            </div>
 
-        {/* Buy Volume */}
-        <div className="panel">
-          <div className="text-xs font-mono text-muted-foreground mb-1">
-            BUY (1H)
-          </div>
-          <div className="text-lg font-mono font-bold text-buy">
-            {formatUSD(marketStats.buyVolume)}
-          </div>
-        </div>
+            {/* Trade Count */}
+            <div className="panel">
+              <div className="text-xs font-mono text-muted-foreground mb-1 flex items-center gap-1">
+                <Activity className="w-3 h-3" />
+                TRADES
+              </div>
+              <div className="text-lg font-mono font-bold text-foreground">
+                {eventStatistics.totalTrades}
+              </div>
+            </div>
 
-        {/* Sell Volume */}
-        <div className="panel">
-          <div className="text-xs font-mono text-muted-foreground mb-1">
-            SELL (1H)
-          </div>
-          <div className="text-lg font-mono font-bold text-sell">
-            {formatUSD(marketStats.sellVolume)}
-          </div>
-        </div>
+            {/* Buy/Sell Ratio */}
+            <div className="panel">
+              <div className="text-xs font-mono text-muted-foreground mb-1">
+                B/S RATIO
+              </div>
+              <div className="text-lg font-mono font-bold text-foreground">
+                {eventStatistics.sellVolume > 0
+                  ? (
+                      eventStatistics.buyVolume / eventStatistics.sellVolume
+                    ).toFixed(2)
+                  : "∞"}
+              </div>
+            </div>
 
-        {/* Spread */}
-        <div className="panel">
-          <div className="text-xs font-mono text-muted-foreground mb-1">
-            SPREAD
-          </div>
-          <div className="text-lg font-mono font-bold text-foreground">
-            {orderbookStats.spread.toFixed(2)}%
-          </div>
-        </div>
+            {/* Average Spread */}
+            <div className="panel">
+              <div className="text-xs font-mono text-muted-foreground mb-1">
+                AVG SPREAD
+              </div>
+              <div className="text-lg font-mono font-bold text-foreground">
+                {eventStatistics.avgSpread.toFixed(2)}%
+              </div>
+            </div>
+          </>
+        ) : (
+          // Individual market statistics
+          <>
+            {/* Last Price */}
+            <div className="panel">
+              <div className="text-xs font-mono text-muted-foreground mb-1">
+                LAST PRICE
+              </div>
+              <div className="text-lg font-mono font-bold text-foreground">
+                ${marketStats.lastPrice.toFixed(3)}
+              </div>
+            </div>
+
+            {/* Price Change */}
+            <div className="panel">
+              <div className="text-xs font-mono text-muted-foreground mb-1">
+                1H CHANGE
+              </div>
+              <div
+                className={`text-lg font-mono font-bold flex items-center gap-1 ${
+                  marketStats.priceChange >= 0 ? "text-buy" : "text-sell"
+                }`}
+              >
+                {marketStats.priceChange >= 0 ? (
+                  <TrendingUp className="w-4 h-4" />
+                ) : (
+                  <TrendingDown className="w-4 h-4" />
+                )}
+                {marketStats.priceChange >= 0 ? "+" : ""}
+                {marketStats.priceChange.toFixed(2)}%
+              </div>
+            </div>
+
+            {/* Total Volume */}
+            <div className="panel">
+              <div className="text-xs font-mono text-muted-foreground mb-1 flex items-center gap-1">
+                <DollarSign className="w-3 h-3" />
+                VOLUME
+              </div>
+              <div className="text-lg font-mono font-bold text-foreground">
+                {formatUSD(marketStats.totalVolume)}
+              </div>
+            </div>
+
+            {/* Trade Count */}
+            <div className="panel">
+              <div className="text-xs font-mono text-muted-foreground mb-1 flex items-center gap-1">
+                <Activity className="w-3 h-3" />
+                TRADES
+              </div>
+              <div className="text-lg font-mono font-bold text-foreground">
+                {marketStats.tradeCount}
+              </div>
+            </div>
+
+            {/* Buy Volume */}
+            <div className="panel">
+              <div className="text-xs font-mono text-muted-foreground mb-1">
+                BUY (1H)
+              </div>
+              <div className="text-lg font-mono font-bold text-buy">
+                {formatUSD(marketStats.buyVolume)}
+              </div>
+            </div>
+
+            {/* Sell Volume */}
+            <div className="panel">
+              <div className="text-xs font-mono text-muted-foreground mb-1">
+                SELL (1H)
+              </div>
+              <div className="text-lg font-mono font-bold text-sell">
+                {formatUSD(marketStats.sellVolume)}
+              </div>
+            </div>
+
+            {/* Spread */}
+            <div className="panel">
+              <div className="text-xs font-mono text-muted-foreground mb-1">
+                SPREAD
+              </div>
+              <div className="text-lg font-mono font-bold text-foreground">
+                {orderbookStats.spread.toFixed(2)}%
+              </div>
+            </div>
+          </>
+        )}
       </div>
+
+      {/* Event-Level Market Distribution */}
+      {isEventLevelView && eventStatistics && (
+        <div className="space-y-4">
+          {/* Volume Distribution */}
+          {eventStatistics.volumeDistribution.length > 0 && (
+            <div className="panel">
+              <h3 className="text-sm font-mono font-bold mb-3">
+                VOLUME DISTRIBUTION
+              </h3>
+              <div className="space-y-2">
+                {eventStatistics.volumeDistribution
+                  .slice(0, 5)
+                  .map((market, idx) => (
+                    <div
+                      key={market.marketId}
+                      className="flex items-center gap-3"
+                    >
+                      <div className="font-mono text-xs text-muted-foreground w-12">
+                        {idx + 1}.
+                      </div>
+                      <button
+                        onClick={() => {
+                          const syntheticEvent: GammaEvent = {
+                            id: selectedMarket.eventId,
+                            ticker: selectedMarket.eventTitle,
+                            slug: selectedMarket.eventSlug,
+                            title: selectedMarket.eventTitle,
+                            description: "",
+                            startDate: new Date().toISOString(),
+                            creationDate: new Date().toISOString(),
+                            endDate: new Date().toISOString(),
+                            active: true,
+                            closed: false,
+                            archived: false,
+                            featured: false,
+                            restricted: false,
+                            liquidity: 0,
+                            volume: 0,
+                            openInterest: 0,
+                            commentCount: 0,
+                            markets: [],
+                          };
+                          const market = relatedMarkets.find(
+                            (m) => m.id === market.marketId,
+                          );
+                          if (market) {
+                            const selectedState = toSelectedMarketState(
+                              market,
+                              syntheticEvent,
+                            );
+                            usePolymarketStore
+                              .getState()
+                              .setSelectedMarket(selectedState);
+                          }
+                        }}
+                        className="flex-1 text-left hover:text-primary transition-colors"
+                      >
+                        <div className="font-mono text-sm truncate">
+                          {market.name}
+                        </div>
+                      </button>
+                      <div className="flex items-center gap-2 text-right">
+                        <div className="font-mono text-sm">
+                          {formatUSD(market.volume)}
+                        </div>
+                        <div className="font-mono text-xs text-muted-foreground w-12 text-right">
+                          {market.percentage.toFixed(1)}%
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+              </div>
+              {eventStatistics.mostActiveMarket && (
+                <div className="mt-3 pt-3 border-t border-border">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-mono text-muted-foreground">
+                      MOST ACTIVE:
+                    </span>
+                    <span className="text-xs font-mono font-bold">
+                      {eventStatistics.mostActiveMarket.name} (
+                      {formatUSD(eventStatistics.mostActiveMarket.volume)})
+                    </span>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Probability Distribution */}
+          {eventStatistics.probabilityDistribution.length > 0 && (
+            <div className="panel">
+              <h3 className="text-sm font-mono font-bold mb-3">
+                PROBABILITY DISTRIBUTION
+              </h3>
+              <div className="space-y-2">
+                {eventStatistics.probabilityDistribution.map((market) => (
+                  <div
+                    key={market.marketId}
+                    className="flex items-center gap-3"
+                  >
+                    <button
+                      onClick={() => {
+                        const syntheticEvent: GammaEvent = {
+                          id: selectedMarket.eventId,
+                          ticker: selectedMarket.eventTitle,
+                          slug: selectedMarket.eventSlug,
+                          title: selectedMarket.eventTitle,
+                          description: "",
+                          startDate: new Date().toISOString(),
+                          creationDate: new Date().toISOString(),
+                          endDate: new Date().toISOString(),
+                          active: true,
+                          closed: false,
+                          archived: false,
+                          featured: false,
+                          restricted: false,
+                          liquidity: 0,
+                          volume: 0,
+                          openInterest: 0,
+                          commentCount: 0,
+                          markets: [],
+                        };
+                        const market = relatedMarkets.find(
+                          (m) => m.id === market.marketId,
+                        );
+                        if (market) {
+                          const selectedState = toSelectedMarketState(
+                            market,
+                            syntheticEvent,
+                          );
+                          usePolymarketStore
+                            .getState()
+                            .setSelectedMarket(selectedState);
+                        }
+                      }}
+                      className="flex-1 text-left hover:text-primary transition-colors"
+                    >
+                      <div className="font-mono text-sm truncate">
+                        {market.name}
+                      </div>
+                    </button>
+                    <div className="flex items-center gap-2">
+                      <div className="w-24 bg-card rounded-full h-2 overflow-hidden">
+                        <div
+                          className="h-full bg-primary transition-all duration-300"
+                          style={{ width: `${market.probability * 100}%` }}
+                        />
+                      </div>
+                      <div className="font-mono text-sm w-12 text-right">
+                        {(market.probability * 100).toFixed(1)}%
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Market Information */}
       {fullMarketData && (
@@ -485,21 +832,69 @@ export function MarketFocus() {
                 <h3 className="text-sm font-mono font-bold mb-3">
                   OUTCOMES & PRICES
                 </h3>
-                <div className="space-y-2">
+                <div className="space-y-4">
                   {fullMarketData.outcomes.map((outcome) => (
                     <div
                       key={outcome.name}
-                      className="flex items-center justify-between"
+                      className="p-3 rounded-md border border-border/50 bg-background/50"
                     >
-                      <span className="text-sm font-mono">{outcome.name}</span>
-                      <div className="flex items-center gap-4">
+                      <div className="flex items-center justify-between mb-2">
                         <span className="text-sm font-mono font-bold">
-                          {(outcome.probability * 100).toFixed(1)}%
+                          {outcome.name}
                         </span>
-                        <span className="text-sm font-mono text-muted-foreground">
-                          ${outcome.price.toFixed(3)}
+                        <div className="price-display flex items-center gap-2">
+                          <div className="main-price text-lg font-mono font-bold">
+                            ${outcome.price.toFixed(3)}
+                          </div>
+                          {outcome.spreadWarning && (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger>
+                                  <AlertCircle className="w-4 h-4 text-yellow-500" />
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  <p>Wide spread - showing last trade price</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="price-metadata text-xs text-muted-foreground font-mono flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <span>
+                            Implied:{" "}
+                            {(outcome.impliedProbability * 100).toFixed(1)}%
+                          </span>
+                          {outcome.priceSource === "last_trade" && (
+                            <Badge variant="warning">Wide Spread</Badge>
+                          )}
+                        </div>
+                        <span>Spread: {outcome.spread.toFixed(3)}</span>
+                      </div>
+
+                      <div className="orderbook-info text-xs text-muted-foreground font-mono flex items-center justify-between">
+                        <span>
+                          Bid: ${outcome.bestBid?.toFixed(3) || "N/A"}
+                        </span>
+                        <span>
+                          Ask: ${outcome.bestAsk?.toFixed(3) || "N/A"}
                         </span>
                       </div>
+
+                      {outcome.spreadWarning && (
+                        <Alert variant="warning" className="mt-3">
+                          <AlertCircle className="h-4 w-4" />
+                          <AlertTitle>Wide Spread Detected</AlertTitle>
+                          <AlertDescription>
+                            The bid-ask spread (${outcome.spread.toFixed(3)}) is
+                            wider than $0.10. Price shown is the last traded
+                            price (${outcome.price.toFixed(3)}) instead of the
+                            orderbook midpoint.
+                          </AlertDescription>
+                        </Alert>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -546,7 +941,10 @@ export function MarketFocus() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 flex-1 min-h-0">
         {/* Left Column - Trade Feed */}
         <div className="h-full min-h-[600px] lg:min-h-0 overflow-hidden">
-          <TradeFeed overrideTrades={marketTrades} overrideFilters={{}} />
+          <TradeFeed
+            overrideTrades={isEventLevelView ? eventTrades : marketTrades}
+            overrideFilters={{}}
+          />
         </div>
 
         {/* Right Column - Order Book */}

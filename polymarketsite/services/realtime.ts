@@ -10,10 +10,12 @@ import {
   Reaction,
   AggOrderbook,
   PriceChange,
+  LastTradePrice,
 } from "@/types/polymarket";
-import { NormalizedMarket } from "@/types/markets";
+import { NormalizedMarket, Outcome } from "@/types/markets";
 import { mockDataGenerator } from "./mockData";
 import { normalizeCryptoPricePayload } from "./cryptoPriceNormalizer";
+import { calculateDisplayPrice } from "@/lib/markets";
 
 type WebSocketLike = {
   readyState?: number;
@@ -287,10 +289,20 @@ class RealtimeService {
               type: "price_change",
               filters: JSON.stringify(assetFilters),
             },
+            {
+              topic: "clob_market",
+              type: "agg_orderbook",
+              filters: JSON.stringify(assetFilters),
+            },
+            {
+              topic: "clob_market",
+              type: "last_trade_price",
+              filters: JSON.stringify(assetFilters),
+            },
           ],
         });
         console.log(
-          `✓ Subscribed to clob_market:price_change for ${assetFilters.length} assets`,
+          `✓ Subscribed to clob_market price_change, agg_orderbook, and last_trade_price for ${assetFilters.length} assets`,
         );
       } else {
         console.warn(
@@ -376,6 +388,8 @@ class RealtimeService {
             this.handlePriceChangeMessage(message.payload, store);
           } else if (message.type === "market_resolved") {
             this.handleMarketResolvedMessage(message.payload, store);
+          } else if (message.type === "last_trade_price") {
+            this.handleLastTradePriceMessage(message.payload, store);
           }
           break;
 
@@ -398,9 +412,16 @@ class RealtimeService {
       id: payload.id || `${Date.now()}-${Math.random()}`,
       // market/condition identifier (support multiple possible keys from RT payloads)
       market:
-        payload.conditionId || payload.market || payload.m || payload.condition_id || "",
+        payload.conditionId ||
+        payload.market ||
+        payload.m ||
+        payload.condition_id ||
+        "",
       marketTitle:
-        payload.title || payload.eventSlug || payload.event_slug || "Unknown Market",
+        payload.title ||
+        payload.eventSlug ||
+        payload.event_slug ||
+        "Unknown Market",
       eventSlug: payload.eventSlug || payload.event_slug || undefined,
       // token/asset identifier (support alternative keys)
       asset:
@@ -429,17 +450,12 @@ class RealtimeService {
     timestamps.push(now);
     this.marketActivity.set(marketId, timestamps);
 
-    // For low-activity markets (sub 100 trades per minute), add directly to store
-    if (this.isLowActivityMarket(marketId)) {
-      store.addTrade(trade);
-    } else {
-      // Add trade to buffer for high-activity markets
-      this.tradeBuffer.push(trade);
+    // Always add trade to buffer to prevent synchronous store updates
+    this.tradeBuffer.push(trade);
 
-      // Start the release timer if not already running
-      if (!this.tradeBufferTimer) {
-        this.startTradeBufferRelease();
-      }
+    // Start the release timer if not already running
+    if (!this.tradeBufferTimer) {
+      this.startTradeBufferRelease();
     }
   }
 
@@ -512,7 +528,7 @@ class RealtimeService {
     const now = Date.now();
     const oneMinuteAgo = now - 60000; // 1 minute in milliseconds
     const timestamps = this.marketActivity.get(marketId) || [];
-    const recentTrades = timestamps.filter(t => t > oneMinuteAgo);
+    const recentTrades = timestamps.filter((t) => t > oneMinuteAgo);
     // Update the map with filtered timestamps
     this.marketActivity.set(marketId, recentTrades);
     return recentTrades.length < 100;
@@ -646,10 +662,48 @@ class RealtimeService {
     if (orderbook.market) {
       store.updateEventOutcomeByCondition(
         orderbook.market,
-        (marketData: NormalizedMarket) => ({
-          ...marketData,
-          lastUpdated: Date.now(),
-        }),
+        (marketData: NormalizedMarket) => {
+          const outcome = marketData.outcomes.find(
+            (o) => o.tokenId === orderbook.asset,
+          );
+          if (!outcome) return marketData;
+
+          const bestBid = orderbook.bids[0]
+            ? parseFloat(orderbook.bids[0].price)
+            : null;
+          const bestAsk = orderbook.asks[0]
+            ? parseFloat(orderbook.asks[0].price)
+            : null;
+
+          const priceResult = calculateDisplayPrice(
+            bestBid,
+            bestAsk,
+            outcome.lastTradedPrice,
+          );
+
+          const outcomes = marketData.outcomes.map((o) => {
+            if (o.tokenId === orderbook.asset) {
+              return {
+                ...o,
+                price: priceResult.displayPrice,
+                impliedProbability: priceResult.impliedProbability,
+                priceSource: priceResult.source,
+                spread: priceResult.spread,
+                spreadWarning: priceResult.spreadWarning,
+                bestBid: priceResult.bestBid,
+                bestAsk: priceResult.bestAsk,
+                orderbookUpdated: Date.now(),
+              };
+            }
+            return o;
+          });
+
+          return {
+            ...marketData,
+            outcomes,
+            lastUpdated: Date.now(),
+          };
+        },
       );
     }
   }
@@ -661,39 +715,11 @@ class RealtimeService {
           market: payload.m || "",
           asset: change.a || "",
           price: change.p || "0",
-          priceChange: "0",
-          priceChangePercent: "0",
+          priceChange: "0", // This should be calculated based on a time window
+          priceChangePercent: "0", // This should be calculated based on a time window
           timestamp: payload.t || Date.now(),
         };
         store.updatePriceChange(priceChange);
-
-        if (priceChange.market) {
-          store.updateEventOutcomeByCondition(
-            priceChange.market,
-            (marketData: NormalizedMarket) => {
-              const outcomeIndex = change.oi ?? marketData.outcomeIndex ?? 0;
-              const probability = Number(change.p);
-
-              const outcomes = marketData.outcomes.map((outcome, index) => {
-                if (index === outcomeIndex) {
-                  return {
-                    ...outcome,
-                    price: probability,
-                    probability,
-                    lastUpdated: Date.now(),
-                  };
-                }
-                return outcome;
-              });
-
-              return {
-                ...marketData,
-                outcomes,
-                lastUpdated: Date.now(),
-              };
-            },
-          );
-        }
       });
     }
   }
@@ -702,6 +728,56 @@ class RealtimeService {
     console.log("🏁 Market resolved:", payload);
     // Could add notification system here
     // For now, just log the event
+  }
+
+  private handleLastTradePriceMessage(payload: any, store: any): void {
+    const lastTradePrice: LastTradePrice = {
+      market: payload.market || "",
+      asset_id: payload.asset_id || "",
+      price: payload.price || "0",
+      timestamp: payload.timestamp || Date.now(),
+      side: payload.side || "",
+      size: payload.size || "0",
+    };
+
+    if (lastTradePrice.market) {
+      store.updateEventOutcomeByCondition(
+        lastTradePrice.market,
+        (marketData: NormalizedMarket) => {
+          const outcome = marketData.outcomes.find(
+            (o) => o.tokenId === lastTradePrice.asset_id,
+          );
+          if (!outcome) return marketData;
+
+          const priceResult = calculateDisplayPrice(
+            outcome.bestBid,
+            outcome.bestAsk,
+            Number(lastTradePrice.price),
+          );
+
+          const outcomes = marketData.outcomes.map((o) => {
+            if (o.tokenId === lastTradePrice.asset_id) {
+              return {
+                ...o,
+                lastTradedPrice: Number(lastTradePrice.price),
+                price: priceResult.displayPrice,
+                impliedProbability: priceResult.impliedProbability,
+                priceSource: priceResult.source,
+                spread: priceResult.spread,
+                spreadWarning: priceResult.spreadWarning,
+              };
+            }
+            return o;
+          });
+
+          return {
+            ...marketData,
+            outcomes,
+            lastUpdated: Date.now(),
+          };
+        },
+      );
+    }
   }
 
   private handleUserTradeMessage(payload: any, store: any): void {
