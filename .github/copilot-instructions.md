@@ -41,6 +41,8 @@ This project follows a **straight-line design system** with specific aesthetic r
 - **Sans-serif typography**: Use Inter for general UI text
 
 ### Color Palette
+These CSS variables are defined in `app/globals.css` and accessed via Tailwind's configuration:
+
 ```css
 --background: #0B0B0B     /* Pure dark background */
 --foreground: #EAEAEA     /* High-contrast text */
@@ -48,6 +50,8 @@ This project follows a **straight-line design system** with specific aesthetic r
 --sell: #FF3C3C          /* Red for sell/negative */
 --neutral: #55AFFF       /* Blue for neutral */
 ```
+
+Use them in components via Tailwind classes: `bg-background`, `text-foreground`, `text-buy`, `text-sell`, `text-neutral`.
 
 ### Component Styling
 - Use `className="panel"` for rectangular containers
