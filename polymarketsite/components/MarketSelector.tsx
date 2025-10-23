@@ -195,7 +195,7 @@ export function MarketSelector() {
       <button
         onClick={() => setOpen(true)}
         className={`
-          flex items-center gap-2 px-4 py-2 rounded-lg border transition-all font-mono text-sm group
+          w-full flex items-center gap-2 px-4 py-2 rounded-lg border transition-all font-mono text-sm group justify-center
           ${
             selectedMarket
               ? "border-primary bg-primary/10 text-primary hover:bg-primary/20 shadow-sm"
@@ -338,7 +338,9 @@ export function MarketSelector() {
                             setSelectedMarket(market);
                             setOpen(false);
                             // Navigate to market focus tab
-                            router.push("/dashboard?tab=main&subtab=marketfocus");
+                            router.push(
+                              "/dashboard?tab=main&subtab=marketfocus",
+                            );
                           }}
                           className="w-full text-left p-3 rounded-lg border border-border hover:bg-secondary/50 hover:border-primary/50 transition-all group"
                         >
@@ -438,7 +440,8 @@ export function MarketSelector() {
                     )}
                     {searchQuery && (
                       <div className="px-2 py-2 text-xs font-mono text-muted-foreground">
-                        Found {markets.length} market{markets.length !== 1 ? "s" : ""}
+                        Found {markets.length} market
+                        {markets.length !== 1 ? "s" : ""}
                       </div>
                     )}
                     <div className="space-y-1.5">
@@ -446,7 +449,8 @@ export function MarketSelector() {
                         const isMultiMarket = eventOutcome.markets.length > 1;
                         const primaryMarket = eventOutcome.markets[0];
                         const topOutcome = eventOutcome.summary?.topOutcome;
-                        const isHovered = hoveredEventId === eventOutcome.eventId;
+                        const isHovered =
+                          hoveredEventId === eventOutcome.eventId;
 
                         return (
                           <div
@@ -493,7 +497,7 @@ export function MarketSelector() {
                                     className="w-9 h-9 rounded-full flex-shrink-0 ring-1 ring-border"
                                   />
                                 )}
-                              <div className="flex-1 min-w-0">
+                                <div className="flex-1 min-w-0">
                                   <div className="flex items-center gap-2 mb-1">
                                     <div className="font-mono font-semibold text-sm group-hover:text-primary transition-colors">
                                       {eventOutcome.title}
@@ -519,14 +523,18 @@ export function MarketSelector() {
                                         {topOutcome.name}
                                       </span>
                                       <span className="font-mono font-bold text-foreground">
-                                        {Math.round(topOutcome.probability * 100)}%
+                                        {Math.round(
+                                          topOutcome.probability * 100,
+                                        )}
+                                        %
                                       </span>
                                     </div>
                                   )}
                                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
                                     {eventOutcome.totalVolume !== undefined && (
                                       <span className="font-mono">
-                                        Vol: {formatUSD(eventOutcome.totalVolume)}
+                                        Vol:{" "}
+                                        {formatUSD(eventOutcome.totalVolume)}
                                       </span>
                                     )}
                                   </div>

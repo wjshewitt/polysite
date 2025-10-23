@@ -97,10 +97,14 @@ export function DashboardHeader() {
             </div>
           ) : (
             /* When no market selected: Show Market Selector centered */
-            <div className="flex-1 flex items-center justify-center min-w-0">
-              <MarketSelector />
+            <div className="flex-1 flex items-center justify-center min-w-0 px-4">
+              <div className="w-full max-w-md">
+                <MarketSelector />
+              </div>
             </div>
           )}
+</parameter>
+</invoke>
 
           {/* Divider (only when market selected) */}
           {selectedMarket && (
