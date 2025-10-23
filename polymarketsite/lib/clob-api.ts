@@ -1,4 +1,4 @@
-import { ClobClient } from "@polymarket/clob-client";
+import { ClobClient, Side } from "@polymarket/clob-client";
 import { calculateDisplayPrice } from "@/lib/markets";
 
 // Initialize read-only client
@@ -10,16 +10,16 @@ export async function fetchInitialPrices(tokenIds: string[]) {
   }
 
   try {
-    // Fetch orderbooks for spread calculation
+    // Fetch orderbooks for spread calculation (using BUY side to get both bids and asks)
     const orderbooks = await clobClient.getOrderBooks(
-      tokenIds.map((id) => ({ token_id: id }))
+      tokenIds.map((id) => ({ token_id: id, side: Side.BUY }))
     );
 
     // Calculate display prices
-    return tokenIds.map((tokenId) => {
-      const orderbook = orderbooks[tokenId];
-      const bestBid = orderbook.bids[0]?.price || null;
-      const bestAsk = orderbook.asks[0]?.price || null;
+    return tokenIds.map((tokenId, index) => {
+      const orderbook = orderbooks[index];
+      const bestBid = orderbook?.bids?.[0]?.price || null;
+      const bestAsk = orderbook?.asks?.[0]?.price || null;
 
       return {
         tokenId,
@@ -30,8 +30,12 @@ export async function fetchInitialPrices(tokenIds: string[]) {
         ),
       };
     });
-  } catch (error) {
-    console.error("Failed to fetch initial prices:", error);
+  } catch (error: any) {
+    // Only log unexpected errors in development
+    const isNetworkError = error?.name === "TypeError" || error?.message?.includes("fetch");
+    if (!isNetworkError && process.env.NODE_ENV === "development") {
+      console.debug("Failed to fetch initial prices:", error?.message);
+    }
     // Fallback to WebSocket-only pricing
     return null;
   }

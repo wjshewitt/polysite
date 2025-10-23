@@ -3,10 +3,17 @@
 import { useEffect, useState } from "react";
 import { usePolymarketStore } from "@/store/usePolymarketStore";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { TrendingUp, TrendingDown, DollarSign, Users } from "lucide-react";
+import {
+  AlertCircle,
+  TrendingUp,
+  TrendingDown,
+  DollarSign,
+  Users,
+} from "lucide-react";
 import { buildEventOutcomes } from "@/lib/markets";
-import type { NormalizedMarket } from "@/types/markets";
+import type { NormalizedMarket, Outcome } from "@/types/markets";
 import { gammaAPI } from "@/services/gamma";
+import { Badge } from "@/components/ui/badge";
 
 interface CryptoMarket {
   id: string;
@@ -83,7 +90,10 @@ export function CryptoMarkets() {
     return `$${volume.toFixed(0)}`;
   };
 
-  const formatPrice = (probability: number) => `${(probability * 100).toFixed(1)}%`;
+  const formatPrice = (outcome: Outcome | undefined) => {
+    if (!outcome) return "$0.00";
+    return `$${outcome.price.toFixed(2)}`;
+  };
 
   return (
     <div className="panel h-full min-h-0 flex flex-col">
@@ -158,24 +168,31 @@ export function CryptoMarkets() {
 
                 {/* Price Info */}
                 <div className="grid gap-2 mb-2">
-                  {market.markets.map((normalizedMarket) => (
-                    <div
-                      key={normalizedMarket.id}
-                      className="bg-muted border border-border p-2 flex items-center justify-between"
-                    >
-                      <div className="font-mono text-[10px] font-semibold text-muted-foreground">
-                        {normalizedMarket.primaryOutcome?.name ?? normalizedMarket.title}
+                  {market.markets.map((normalizedMarket) => {
+                    const outcome =
+                      normalizedMarket.outcomes.find(
+                        (o) => o.name.toLowerCase() === "yes",
+                      ) || normalizedMarket.outcomes[0];
+                    return (
+                      <div
+                        key={normalizedMarket.id}
+                        className="bg-muted border border-border p-2 flex items-center justify-between"
+                      >
+                        <div className="font-mono text-[10px] font-semibold text-muted-foreground">
+                          {normalizedMarket.primaryOutcome?.name ??
+                            normalizedMarket.title}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {outcome?.spreadWarning && (
+                            <Badge variant="warning">Wide Spread</Badge>
+                          )}
+                          <div className="font-mono text-xs sm:text-sm font-bold text-buy">
+                            {formatPrice(outcome)}
+                          </div>
+                        </div>
                       </div>
-                      <div className="font-mono text-xs sm:text-sm font-bold text-buy">
-                        {formatPrice(
-                          normalizedMarket.primaryOutcome?.probability ??
-                            normalizedMarket.outcomes.find((outcome) => outcome.name.toLowerCase() === "yes")?.probability ??
-                            normalizedMarket.outcomes[0]?.probability ??
-                            0,
-                        )}
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
 
                 {/* Stats Row */}
@@ -193,9 +210,7 @@ export function CryptoMarkets() {
                   {market.change24h !== undefined && (
                     <div
                       className={`flex items-center gap-1 ${
-                        market.change24h >= 0
-                          ? "text-success"
-                          : "text-sell"
+                        market.change24h >= 0 ? "text-success" : "text-sell"
                       }`}
                     >
                       {market.change24h >= 0 ? (

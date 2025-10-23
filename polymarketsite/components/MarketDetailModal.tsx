@@ -869,20 +869,27 @@ export function MarketDetailModal({
                                 : "hover:ring-1 hover:ring-border"
                             }`}
                           >
-                            {marketOption.primaryOutcome && (
-                              <div className="flex items-center justify-between px-3 py-1 border-b border-border/60 text-[11px] sm:text-xs font-mono bg-background/40">
-                                <span className="text-muted-foreground">
-                                  {marketOption.primaryOutcome.name}
-                                </span>
-                                <span className="font-bold text-buy">
-                                  {(
-                                    marketOption.primaryOutcome.probability *
-                                    100
-                                  ).toFixed(1)}
-                                  %
-                                </span>
-                              </div>
-                            )}
+                            {marketOption.primaryOutcome &&
+                              (() => {
+                                const primaryOutcomeDetails =
+                                  marketOption.outcomes.find(
+                                    (o) =>
+                                      o.name ===
+                                      marketOption.primaryOutcome?.name,
+                                  );
+                                if (!primaryOutcomeDetails) return null;
+
+                                return (
+                                  <div className="flex items-center justify-between px-3 py-1 border-b border-border/60 text-[11px] sm:text-xs font-mono bg-background/40">
+                                    <span className="text-muted-foreground">
+                                      {marketOption.primaryOutcome.name}
+                                    </span>
+                                    <span className="font-bold text-buy">
+                                      {`$${primaryOutcomeDetails.price.toFixed(2)}`}
+                                    </span>
+                                  </div>
+                                );
+                              })()}
                             <MarketOutcomes
                               market={marketOption}
                               hidePrimary={true}

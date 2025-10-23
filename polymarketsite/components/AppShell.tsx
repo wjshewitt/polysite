@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { usePolymarketStore } from "@/store/usePolymarketStore";
 import { validateStoredMarket } from "@/lib/marketSearch";
-import { SiteHeader } from "@/components/SiteHeader";
+import { DashboardHeader } from "@/components/DashboardHeader";
 
 interface AppShellProps {
   children: React.ReactNode;
@@ -48,7 +48,7 @@ export function AppShell({ children }: AppShellProps) {
 
   return (
     <div className="flex flex-col min-h-screen">
-      <SiteHeader />
+      <DashboardHeader />
       <main className="flex-1">{children}</main>
     </div>
   );

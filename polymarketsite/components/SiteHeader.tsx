@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { MarketSelector } from "@/components/MarketSelector";
 import { ConnectionStatus } from "@/components/ConnectionStatus";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { AuthHeader } from "@/components/AuthHeader";
@@ -20,18 +19,14 @@ export function SiteHeader() {
     <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container mx-auto px-4">
         <div className="flex h-16 items-center justify-between gap-4">
-          {/* Left: Logo + Market Selector */}
+          {/* Left: Logo */}
           <div className="flex items-center gap-4">
-            <Link 
-              href="/" 
+            <Link
+              href="/"
               className="text-xl font-mono font-bold hover:text-primary transition-colors"
             >
               betterPoly
             </Link>
-            
-            <div className="hidden md:block">
-              <MarketSelector />
-            </div>
           </div>
 
           {/* Center: Nav Links (hidden on mobile) */}
@@ -62,11 +57,6 @@ export function SiteHeader() {
             <ThemeToggle />
             <AuthHeader />
           </div>
-        </div>
-
-        {/* Mobile: Market Selector (shown below on small screens) */}
-        <div className="md:hidden pb-3">
-          <MarketSelector />
         </div>
       </div>
     </header>

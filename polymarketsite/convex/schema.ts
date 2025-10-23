@@ -114,6 +114,31 @@ export default defineSchema({
     .index("by_last_updated", ["lastUpdated"])
     .index("by_expires", ["expiresAt"]),
 
+  // Markets - Market metadata
+  markets: defineTable({
+    id: v.string(),              // Market ID
+    conditionId: v.string(),     // Condition ID
+    slug: v.string(),            // URL slug
+    title: v.string(),           // Market title
+    description: v.optional(v.string()), // Market description
+    endDate: v.optional(v.number()), // End date timestamp
+    createdAt: v.number(),       // Creation timestamp
+    volume: v.optional(v.number()), // Total volume
+    liquidity: v.optional(v.number()), // Total liquidity
+    yesPrice: v.optional(v.number()), // YES outcome price
+    noPrice: v.optional(v.number()), // NO outcome price
+    yesTokenId: v.optional(v.string()), // YES token ID
+    noTokenId: v.optional(v.string()), // NO token ID
+    resolved: v.optional(v.boolean()), // Is resolved?
+    resolvedOutcome: v.optional(v.string()), // Resolution outcome
+  })
+    .index("by_market_id", ["id"])
+    .index("by_condition_id", ["conditionId"])
+    .index("by_slug", ["slug"])
+    .index("by_created_at", ["createdAt"])
+    .index("by_end_date", ["endDate"])
+    .index("by_resolved", ["resolved"]),
+
   // Users - User profiles, watchlists, and settings
   // For future authentication implementation
   users: defineTable({

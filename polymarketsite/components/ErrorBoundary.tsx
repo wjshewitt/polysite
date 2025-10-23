@@ -23,7 +23,14 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-    console.error("ErrorBoundary caught an error:", error, errorInfo);
+    // Filter out empty errors from websocket library
+    if (error && typeof error === 'object' && Object.keys(error).length === 0) {
+      console.warn("ErrorBoundary: Ignored empty error object from websocket");
+      return;
+    }
+    
+    // Use console.warn instead of console.error to prevent Next.js from throwing
+    console.warn("ErrorBoundary caught an error:", error, errorInfo);
   }
 
   resetError = () => {

@@ -219,9 +219,24 @@ export function MarketFocus() {
             "[MarketFocus] Fetching event from API:",
             selectedMarket.eventSlug,
           );
-          const event = await gammaAPI.fetchEventBySlug(
-            selectedMarket.eventSlug,
-          );
+          
+          // Add retry logic for network errors
+          let retries = 2;
+          let event = null;
+          
+          while (retries >= 0 && !event) {
+            event = await gammaAPI.fetchEventBySlug(
+              selectedMarket.eventSlug,
+            );
+            
+            if (!event && retries > 0) {
+              // Wait briefly before retry
+              await new Promise(resolve => setTimeout(resolve, 500));
+              retries--;
+            } else {
+              break;
+            }
+          }
 
           if (event) {
             setFullEventData(event);
@@ -245,7 +260,11 @@ export function MarketFocus() {
           }
         }
       } catch (error: any) {
-        console.error("[MarketFocus] Error fetching market data:", error);
+        // Only log non-network errors
+        const isNetworkError = error?.name === "TypeError" || error?.message?.includes("fetch");
+        if (!isNetworkError) {
+          console.error("[MarketFocus] Error fetching market data:", error);
+        }
         setFetchError("Failed to load complete market data");
       } finally {
         setLoading(false);
@@ -273,7 +292,7 @@ export function MarketFocus() {
               ...outcome,
               price: priceData.displayPrice,
               impliedProbability: priceData.impliedProbability,
-              priceSource: priceData.source,
+              priceSource: priceData.priceSource,
               spread: priceData.spread,
               spreadWarning: priceData.spreadWarning,
               bestBid: priceData.bestBid,
@@ -305,7 +324,7 @@ export function MarketFocus() {
     return markets;
   }, [eventOutcomes, selectedMarket]);
 
-  const isEventLevelView = relatedMarkets.length > 1;
+  const isEventLevelView = relatedMarkets.length > 1 && selectedMarket?.isEventView !== false;
 
   // Calculate event statistics when in event-level view
   useEffect(() => {
@@ -412,17 +431,50 @@ export function MarketFocus() {
         </div>
       </div>
 
-      {/* Related Markets Panel (for event-level views) */}
-      {isEventLevelView && relatedMarkets.length > 1 && (
+      {/* Related Markets Dropdown (for event-level views) */}
+      {relatedMarkets.length > 1 && (
         <div className="panel">
           <h3 className="text-sm font-mono font-bold mb-3">
             ALL MARKETS IN THIS EVENT
           </h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-            {relatedMarkets.map((market) => (
-              <button
-                key={market.id}
-                onClick={() => {
+          <select
+            value={selectedMarket?.isEventView ? 'event' : selectedMarket?.marketId || ''}
+            onChange={(e) => {
+              const value = e.target.value;
+              if (value === 'event') {
+                // Set to event view
+                const syntheticEvent: GammaEvent = {
+                  id: selectedMarket.eventId,
+                  ticker: selectedMarket.eventTitle,
+                  slug: selectedMarket.eventSlug,
+                  title: selectedMarket.eventTitle,
+                  description: "",
+                  startDate: new Date().toISOString(),
+                  creationDate: new Date().toISOString(),
+                  endDate: new Date().toISOString(),
+                  active: true,
+                  closed: false,
+                  archived: false,
+                  featured: false,
+                  restricted: false,
+                  liquidity: 0,
+                  volume: 0,
+                  openInterest: 0,
+                  commentCount: 0,
+                  markets: [],
+                  icon: selectedMarket.icon,
+                  image: selectedMarket.image,
+                };
+                const selectedState = toSelectedMarketState(
+                  relatedMarkets[0], // Use first market as base
+                  syntheticEvent,
+                );
+                selectedState.isEventView = true;
+                usePolymarketStore.getState().setSelectedMarket(selectedState);
+              } else {
+                // Set to specific market
+                const market = relatedMarkets.find(m => m.id === value);
+                if (market) {
                   const syntheticEvent: GammaEvent = {
                     id: selectedMarket.eventId,
                     ticker: selectedMarket.eventTitle,
@@ -445,31 +497,21 @@ export function MarketFocus() {
                     icon: market.icon,
                     image: market.image,
                   };
-                  const selectedState = toSelectedMarketState(
-                    market,
-                    syntheticEvent,
-                  );
-                  usePolymarketStore
-                    .getState()
-                    .setSelectedMarket(selectedState);
-                }}
-                className={`text-left p-2 rounded border transition-colors ${
-                  market.id === selectedMarket.marketId
-                    ? "border-primary bg-primary/10"
-                    : "border-border hover:bg-secondary/50"
-                }`}
-              >
-                <div className="text-xs font-mono font-semibold truncate">
-                  {market.displayName || market.title}
-                </div>
-                {market.primaryOutcome && (
-                  <div className="text-xs font-mono text-muted-foreground mt-1">
-                    {Math.round(market.primaryOutcome.probability * 100)}%
-                  </div>
-                )}
-              </button>
+                  const selectedState = toSelectedMarketState(market, syntheticEvent);
+                  selectedState.isEventView = false;
+                  usePolymarketStore.getState().setSelectedMarket(selectedState);
+                }
+              }
+            }}
+            className="w-full p-2 border border-border rounded-md bg-background font-mono text-sm"
+          >
+            <option value="event">View Event as a Whole</option>
+            {relatedMarkets.map((market) => (
+              <option key={market.id} value={market.id}>
+                {market.displayName || market.title}
+              </option>
             ))}
-          </div>
+          </select>
         </div>
       )}
 
@@ -541,28 +583,32 @@ export function MarketFocus() {
             </div>
 
             {/* Buy/Sell Ratio */}
-            <div className="panel">
-              <div className="text-xs font-mono text-muted-foreground mb-1">
-                B/S RATIO
+            {!selectedMarket?.isEventView && (
+              <div className="panel">
+                <div className="text-xs font-mono text-muted-foreground mb-1">
+                  B/S RATIO
+                </div>
+                <div className="text-lg font-mono font-bold text-foreground">
+                  {eventStatistics.sellVolume > 0
+                    ? (
+                        eventStatistics.buyVolume / eventStatistics.sellVolume
+                      ).toFixed(2)
+                    : "∞"}
+                </div>
               </div>
-              <div className="text-lg font-mono font-bold text-foreground">
-                {eventStatistics.sellVolume > 0
-                  ? (
-                      eventStatistics.buyVolume / eventStatistics.sellVolume
-                    ).toFixed(2)
-                  : "∞"}
-              </div>
-            </div>
+            )}
 
             {/* Average Spread */}
-            <div className="panel">
-              <div className="text-xs font-mono text-muted-foreground mb-1">
-                AVG SPREAD
+            {!selectedMarket?.isEventView && (
+              <div className="panel">
+                <div className="text-xs font-mono text-muted-foreground mb-1">
+                  AVG SPREAD
+                </div>
+                <div className="text-lg font-mono font-bold text-foreground">
+                  {eventStatistics.avgSpread.toFixed(2)}%
+                </div>
               </div>
-              <div className="text-lg font-mono font-bold text-foreground">
-                {eventStatistics.avgSpread.toFixed(2)}%
-              </div>
-            </div>
+            )}
           </>
         ) : (
           // Individual market statistics
@@ -694,12 +740,12 @@ export function MarketFocus() {
                             commentCount: 0,
                             markets: [],
                           };
-                          const market = relatedMarkets.find(
+                          const relatedMarket = relatedMarkets.find(
                             (m) => m.id === market.marketId,
                           );
-                          if (market) {
+                          if (relatedMarket) {
                             const selectedState = toSelectedMarketState(
-                              market,
+                              relatedMarket,
                               syntheticEvent,
                             );
                             usePolymarketStore
@@ -774,12 +820,12 @@ export function MarketFocus() {
                           commentCount: 0,
                           markets: [],
                         };
-                        const market = relatedMarkets.find(
+                        const relatedMarket = relatedMarkets.find(
                           (m) => m.id === market.marketId,
                         );
-                        if (market) {
+                        if (relatedMarket) {
                           const selectedState = toSelectedMarketState(
-                            market,
+                            relatedMarket,
                             syntheticEvent,
                           );
                           usePolymarketStore
@@ -871,17 +917,21 @@ export function MarketFocus() {
                             <Badge variant="warning">Wide Spread</Badge>
                           )}
                         </div>
-                        <span>Spread: {outcome.spread.toFixed(3)}</span>
+                        {!selectedMarket?.isEventView && (
+                          <span>Spread: {outcome.spread.toFixed(3)}</span>
+                        )}
                       </div>
 
-                      <div className="orderbook-info text-xs text-muted-foreground font-mono flex items-center justify-between">
-                        <span>
-                          Bid: ${outcome.bestBid?.toFixed(3) || "N/A"}
-                        </span>
-                        <span>
-                          Ask: ${outcome.bestAsk?.toFixed(3) || "N/A"}
-                        </span>
-                      </div>
+                      {!selectedMarket?.isEventView && (
+                        <div className="orderbook-info text-xs text-muted-foreground font-mono flex items-center justify-between">
+                          <span>
+                            Bid: ${outcome.bestBid?.toFixed(3) || "N/A"}
+                          </span>
+                          <span>
+                            Ask: ${outcome.bestAsk?.toFixed(3) || "N/A"}
+                          </span>
+                        </div>
+                      )}
 
                       {outcome.spreadWarning && (
                         <Alert variant="warning" className="mt-3">

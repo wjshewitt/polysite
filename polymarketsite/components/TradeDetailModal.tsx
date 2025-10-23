@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { Trade } from "@/types/polymarket";
 import { formatPrice, formatTimestamp, formatLargeNumber } from "@/lib/utils";
+import { usePolymarketStore } from "@/store/usePolymarketStore";
+import { calculateDisplayPrice, PriceDisplayData } from "@/lib/markets";
 import {
   Dialog,
   DialogContent,
@@ -27,6 +29,7 @@ import {
   AlertCircle,
   Info,
   Lightbulb,
+  AlertTriangle,
 } from "lucide-react";
 
 interface TradeDetailModalProps {
@@ -47,9 +50,17 @@ export function TradeDetailModal({
   totalOutcomes,
 }: TradeDetailModalProps) {
   const [copiedField, setCopiedField] = useState<string | null>(null);
+  const orderbooks = usePolymarketStore((state) => state.orderbooks);
 
   if (!trade) return null;
 
+  const orderbook = orderbooks.get(trade.asset);
+
+  const priceData = calculateDisplayPrice(
+    orderbook?.bids[0] ? parseFloat(orderbook.bids[0].price) : null,
+    orderbook?.asks[0] ? parseFloat(orderbook.asks[0].price) : null,
+    trade.price ? parseFloat(trade.price) : null,
+  );
   const handleViewMarket = () => {
     if (onViewMarket && (trade.eventSlug || trade.asset)) {
       onViewMarket(trade.eventSlug, trade.asset);
@@ -216,156 +227,75 @@ export function TradeDetailModal({
             </div>
 
             {/* Stats Grid */}
-            <div className="grid grid-cols-4 gap-4">
-              <div className="bg-secondary/30 border border-border rounded-lg p-4">
-                <div className="flex items-center gap-2 text-muted-foreground text-xs font-mono uppercase mb-2">
-                  <DollarSign className="w-3 h-3" />
-                  Price
+            <div className="grid grid-cols-2 gap-4 mt-4">
+              <div className="stat-box bg-secondary/30 border border-border rounded-lg p-4">
+                <div className="stat-label text-muted-foreground text-xs font-mono uppercase mb-2">
+                  BEST BID
                 </div>
-                <div className="text-2xl font-mono font-bold mb-1">
-                  ${formatPrice(trade.price)}
-                </div>
-                <div className="text-xs text-muted-foreground font-mono">
-                  {probability}% implied probability
-                </div>
-                <div className="text-xs text-muted-foreground font-mono mt-1">
-                  ${(1 - pricePerShare).toFixed(2)} profit per share if wins
+                <div className="stat-value text-lg font-mono font-bold text-green-400">
+                  ${priceData.bestBid?.toFixed(3) || "N/A"}
                 </div>
               </div>
 
-              <div className="bg-secondary/30 border border-border rounded-lg p-4">
-                <div className="flex items-center gap-2 text-muted-foreground text-xs font-mono uppercase mb-2">
-                  <Activity className="w-3 h-3" />
-                  Size
+              <div className="stat-box bg-secondary/30 border border-border rounded-lg p-4">
+                <div className="stat-label text-muted-foreground text-xs font-mono uppercase mb-2">
+                  BEST ASK
                 </div>
-                <div className="text-2xl font-mono font-bold mb-1">
-                  {formatLargeNumber(trade.size)}
-                </div>
-                <div className="text-xs text-muted-foreground font-mono">
-                  shares
+                <div className="stat-value text-lg font-mono font-bold text-red-400">
+                  ${priceData.bestAsk?.toFixed(3) || "N/A"}
                 </div>
               </div>
 
-              <div className="bg-secondary/30 border border-border rounded-lg p-4">
-                <div className="flex items-center gap-2 text-muted-foreground text-xs font-mono uppercase mb-2">
-                  <DollarSign className="w-3 h-3" />
-                  Total Value
+              <div className="stat-box bg-secondary/30 border border-border rounded-lg p-4">
+                <div className="stat-label text-muted-foreground text-xs font-mono uppercase mb-2">
+                  SPREAD
                 </div>
-                <div className="text-xl font-mono font-bold mb-1">
-                  ${formatLargeNumber(tradeValue)}
-                </div>
-                <div className="text-xs text-muted-foreground font-mono">
-                  + ${estimatedFee} fee
+                <div className="stat-value text-lg font-mono font-bold">
+                  ${priceData.spread.toFixed(3)}
+                  <span className="text-xs text-gray-500 ml-2">
+                    (
+                    {(
+                      (priceData.spread / priceData.displayPrice) *
+                      100
+                    ).toFixed(2)}
+                    %)
+                  </span>
                 </div>
               </div>
 
-              <div className="bg-secondary/30 border border-border rounded-lg p-4">
-                <div className="flex items-center gap-2 text-muted-foreground text-xs font-mono uppercase mb-2">
-                  <Clock className="w-3 h-3" />
-                  Order Type
+              <div className="stat-box bg-secondary/30 border border-border rounded-lg p-4">
+                <div className="stat-label text-muted-foreground text-xs font-mono uppercase mb-2">
+                  PRICE SOURCE
                 </div>
-                <div className="text-xl font-mono font-bold mb-1">Limit</div>
-                <div className="text-xs text-muted-foreground font-mono">
-                  Good til cancelled
+                <div className="stat-value text-sm font-mono font-bold">
+                  {priceData.priceSource === "midpoint"
+                    ? "Orderbook Midpoint"
+                    : priceData.priceSource === "last_trade"
+                      ? "Last Traded Price"
+                      : "Fallback Estimate"}
                 </div>
               </div>
             </div>
 
             {/* Context and Education Section - Side by Side */}
-            <div className="grid grid-cols-2 gap-4">
-              {/* Market Context */}
-              <div className="bg-blue-500/10 border border-blue-500/30 rounded-lg p-4">
-                <div className="flex items-start gap-3">
-                  <Info className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <div className="text-sm font-mono font-bold mb-2 text-blue-500">
-                      MARKET CONTEXT
-                    </div>
-                    <div className="text-xs text-muted-foreground font-mono space-y-1">
-                      {isMultiOutcome && (
-                        <div className="mb-2 pb-2 border-b border-blue-500/20">
-                          <span className="font-bold text-blue-400">
-                            Multi-outcome market:
-                          </span>{" "}
-                          This is 1 of {totalOutcomes} possible outcomes.
-                          {evenOddsProbability && (
-                            <span>
-                              {" "}
-                              Even odds would be ~{evenOddsProbability}%, so{" "}
-                              {probability}% means this outcome is{" "}
-                              {parseFloat(probability) >
-                              parseFloat(evenOddsProbability)
-                                ? "heavily favored"
-                                : "less likely"}
-                              .
-                            </span>
-                          )}
-                        </div>
-                      )}
-                      {isBinaryMarket && (
-                        <div className="mb-2 pb-2 border-b border-blue-500/20">
-                          <span className="font-bold text-blue-400">
-                            Binary market:
-                          </span>{" "}
-                          This is 1 of 2 possible outcomes (Yes/No).
-                        </div>
-                      )}
-                      <div>
-                        • Outcome traded:{" "}
-                        <span className="text-foreground font-bold">
-                          {trade.outcome || "Unknown"}
-                        </span>
-                      </div>
-                      <div>
-                        • {isBuy ? "Buyer" : "Seller"} believes {probability}%
-                        chance
-                      </div>
-                      <div>
-                        • If wins: ${potentialPayout.toFixed(2)} payout (
-                        {sharesAmount} shares × $1.00)
-                      </div>
-                      <div>• If loses: ${costBasis.toFixed(2)} total loss</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
+            <div className="grid grid-cols-1 gap-4">
               {/* Understanding This Trade */}
-              <div className="bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4">
-                <div className="flex items-start gap-3">
-                  <Lightbulb className="w-5 h-5 text-yellow-500 flex-shrink-0 mt-0.5" />
-                  <div>
-                    <div className="text-sm font-mono font-bold mb-2 text-yellow-500">
-                      UNDERSTANDING THIS TRADE
-                    </div>
-                    <div className="text-xs text-muted-foreground font-mono space-y-2">
-                      <div>
-                        <span className="font-bold">What the price means:</span>{" "}
-                        ${formatPrice(trade.price)} per share = {probability}%
-                        implied probability.
-                        {isMultiOutcome && evenOddsProbability && (
-                          <span>
-                            {" "}
-                            (Even odds across {totalOutcomes} outcomes would be
-                            ~{evenOddsProbability}%)
-                          </span>
-                        )}
-                      </div>
-                      <div>
-                        <span className="font-bold">Profit calculation:</span>{" "}
-                        Cost ${costBasis.toFixed(2)} → Potential payout $
-                        {potentialPayout.toFixed(2)} = ${potentialProfit} profit
-                        if correct
-                      </div>
-                      <div>
-                        <span className="font-bold">How it works:</span> Each
-                        share pays $1.00 if this outcome wins, $0.00 if it
-                        loses. The {isBuy ? "buyer paid" : "seller received"} $
-                        {formatPrice(trade.price)} per share.
-                      </div>
-                    </div>
-                  </div>
-                </div>
+              <div className="understanding-section bg-yellow-500/10 border border-yellow-500/30 rounded-lg p-4">
+                <h3 className="text-yellow-500 font-mono font-bold mb-2">
+                  💡 UNDERSTANDING THIS TRADE
+                </h3>
+                <p className="text-xs text-muted-foreground font-mono">
+                  <strong>Price calculation:</strong>
+                  {priceData.priceSource === "midpoint"
+                    ? `$${priceData.displayPrice.toFixed(3)} = midpoint of bid ($${priceData.bestBid?.toFixed(3)})
+                       and ask ($${priceData.bestAsk?.toFixed(3)}). Spread is ${(priceData.spread * 100).toFixed(1)}¢.`
+                    : `$${priceData.displayPrice.toFixed(3)} from last trade. Spread ($${priceData.spread.toFixed(3)})
+                       exceeds 10¢ threshold, so we show last traded price instead of midpoint.`}
+                </p>
+                <p className="text-xs text-muted-foreground font-mono mt-2">
+                  <strong>Implied probability:</strong>{" "}
+                  {(priceData.impliedProbability * 100).toFixed(1)}%
+                </p>
               </div>
             </div>
 

@@ -280,7 +280,11 @@ class GammaAPIService {
     }
 
     try {
-      const response = await fetch(`${GAMMA_API_BASE}/events/slug/${slug}`);
+      const response = await fetch(`${GAMMA_API_BASE}/events/slug/${slug}`, {
+        headers: { Accept: "application/json" },
+        signal: AbortSignal.timeout(10000), // 10 second timeout
+      });
+      
       if (!response.ok) {
         // Don't throw for 404s - return null instead
         if (response.status === 404) {
@@ -293,7 +297,9 @@ class GammaAPIService {
         // Check if we got HTML instead of JSON
         const contentType = response.headers.get("content-type") || "";
         if (contentType.includes("text/html")) {
-          console.error(`[GammaAPI] Received HTML for event slug: ${slug}`);
+          if (process.env.NODE_ENV === "development") {
+            console.debug(`[GammaAPI] Received HTML for event slug: ${slug}`);
+          }
           return null;
         }
         
@@ -303,7 +309,9 @@ class GammaAPIService {
       // Check content-type before parsing JSON
       const contentType = response.headers.get("content-type") || "";
       if (!contentType.includes("application/json")) {
-        console.error(`[GammaAPI] Expected JSON for event slug ${slug} but got ${contentType}`);
+        if (process.env.NODE_ENV === "development") {
+          console.debug(`[GammaAPI] Expected JSON for event slug ${slug} but got ${contentType}`);
+        }
         return null;
       }
       
@@ -311,16 +319,17 @@ class GammaAPIService {
       this.setCache(cacheKey, data);
       return data;
     } catch (error: any) {
-      // Don't log 404s - they're expected for old/removed markets
+      // Don't log expected errors (404s, HTML responses, network errors)
       const is404 = error?.message?.includes("404");
-      if (!is404) {
-        console.error("Error fetching event by slug:", error);
+      const isNetworkError = error?.name === "TypeError" && error?.message?.includes("fetch");
+      const isTimeout = error?.name === "TimeoutError" || error?.name === "AbortError";
+      
+      if (!is404 && !isNetworkError && !isTimeout && process.env.NODE_ENV === "development") {
+        console.debug("[GammaAPI] Error fetching event by slug:", slug, error?.message);
       }
-      // Return null for 404s, re-throw other errors
-      if (is404 || error?.message?.includes("HTML")) {
-        return null;
-      }
-      throw error;
+      
+      // Return null for all expected errors (don't throw)
+      return null;
     }
   }
 
@@ -393,6 +402,7 @@ class GammaAPIService {
       const url = `${baseUrl}/markets/slug/${slug}`;
       const response = await fetch(url, {
         headers: { Accept: "application/json" },
+        signal: AbortSignal.timeout(10000), // 10 second timeout
       });
 
       if (!response.ok) {
@@ -418,12 +428,15 @@ class GammaAPIService {
       this.setCache(cacheKey, data);
       return data;
     } catch (error: any) {
-      // Don't log 404s/HTML—return null upstream quietly
+      // Don't log expected errors (404s, HTML, network, timeouts)
       const is404 = error?.message?.includes("404");
-      if (is404 || error?.message?.includes("HTML")) {
-        return null as any;
+      const isNetworkError = error?.name === "TypeError" && error?.message?.includes("fetch");
+      const isTimeout = error?.name === "TimeoutError" || error?.name === "AbortError";
+      
+      if (!is404 && !isNetworkError && !isTimeout && process.env.NODE_ENV === "development") {
+        console.debug("[GammaAPI] Error fetching market by slug:", slug, error?.message);
       }
-      console.error("Error fetching market by slug:", error);
+      
       return null as any;
     }
   }

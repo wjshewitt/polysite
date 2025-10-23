@@ -29,19 +29,13 @@ export function ThemeToggle() {
   return (
     <button
       onClick={toggleTheme}
-      className="flex items-center gap-2 px-3 py-2 bg-card border border-border hover:bg-muted transition-colors font-mono text-sm group"
+      className="flex items-center gap-1.5 px-3 py-1.5 bg-card border border-border hover:bg-muted transition-colors font-mono text-xs group"
       title={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
     >
       {theme === "dark" ? (
-        <>
-          <Moon className="w-4 h-4 text-primary group-hover:text-primary/80 transition-colors" />
-          <span className="hidden sm:inline">DARK</span>
-        </>
+        <Moon className="w-4 h-4 text-primary group-hover:text-primary/80 transition-colors" />
       ) : (
-        <>
-          <Sun className="w-4 h-4 text-primary group-hover:text-primary/80 transition-colors" />
-          <span className="hidden sm:inline">LIGHT</span>
-        </>
+        <Sun className="w-4 h-4 text-primary group-hover:text-primary/80 transition-colors" />
       )}
     </button>
   );

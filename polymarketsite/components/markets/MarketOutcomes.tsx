@@ -1,7 +1,7 @@
-import type { NormalizedMarket } from "@/types/markets";
+import type { NormalizedMarket, Outcome } from "@/types/markets";
+import { AlertCircle } from "lucide-react";
 
-const formatProbability = (value: number): string =>
-  `${(value * 100).toFixed(1)}%`;
+const formatPrice = (price: number): string => `$${price.toFixed(2)}`;
 
 export const MarketOutcomes = ({
   market,
@@ -21,7 +21,7 @@ export const MarketOutcomes = ({
   }
 
   const topOutcome = market.outcomes[0];
-  const maxProbability = Math.max(...market.outcomes.map((o) => o.probability));
+  const maxPrice = Math.max(...market.outcomes.map((o) => o.price));
   const primaryName = market.primaryOutcome?.name?.toLowerCase();
   const primaryYesToken = market.primaryOutcome?.yesTokenId;
   const primaryNoToken = market.primaryOutcome?.noTokenId;
@@ -55,11 +55,9 @@ export const MarketOutcomes = ({
   return (
     <div className="space-y-1">
       {outcomesToShow.map((outcome, index) => {
-        const probability = outcome.probability;
+        const price = outcome.price;
         const isTop = topOutcome?.name === outcome.name;
-        const barWidth = maxProbability
-          ? (probability / maxProbability) * 100
-          : 0;
+        const barWidth = maxPrice ? (price / maxPrice) * 100 : 0;
 
         // Determine if outcome represents the "Yes" side after normalization
         const normalizedName = outcome.name.toLowerCase();
@@ -106,9 +104,14 @@ export const MarketOutcomes = ({
             >
               {outcome.name}
             </span>
-            <span className={`relative z-10 font-mono font-bold ${textColor}`}>
-              {formatProbability(probability)}
-            </span>
+            <div className="relative z-10 flex items-center gap-2">
+              {outcome.priceSource !== "midpoint" && (
+                <AlertCircle className="w-3 h-3 text-yellow-500" />
+              )}
+              <span className={`font-mono font-bold ${textColor}`}>
+                {formatPrice(price)}
+              </span>
+            </div>
           </div>
         );
       })}

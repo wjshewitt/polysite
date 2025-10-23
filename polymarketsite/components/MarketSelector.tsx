@@ -36,7 +36,7 @@ export function MarketSelector() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hoveredEventId, setHoveredEventId] = useState<string | null>(null);
-  const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties>({});
+  const [hoverTimer, setHoverTimer] = useState<NodeJS.Timeout | null>(null);
 
   // Debounced search
   useEffect(() => {
@@ -76,6 +76,11 @@ export function MarketSelector() {
         .finally(() => setLoading(false));
     }
   }, [open]);
+
+  const hoveredEvent = useMemo(
+    () => markets.find((event) => event.eventId === hoveredEventId),
+    [markets, hoveredEventId],
+  );
 
   const handleSelectEvent = (eventOutcome: EventOutcomes) => {
     if (
@@ -235,7 +240,11 @@ export function MarketSelector() {
 
       {/* Selection Dialog */}
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+        <DialogContent
+          className={`max-h-[80vh] overflow-hidden flex flex-col transition-all duration-300 ${
+            hoveredEvent ? "max-w-4xl" : "max-w-2xl"
+          }`}
+        >
           <DialogHeader>
             <DialogTitle className="font-mono text-xl">
               Select Market
@@ -255,253 +264,250 @@ export function MarketSelector() {
             />
           </div>
 
-          {/* Markets List */}
-          <div className="flex-1 -mx-6 px-6 overflow-y-auto">
-            <div className="space-y-2 py-2 pb-8">
-              {/* All Markets Option */}
-              {!searchQuery && (
-                <button
-                  onClick={() => {
-                    clearSelectedMarket();
-                    setOpen(false);
-                    setSearchQuery("");
-                    router.push("/dashboard?tab=main&subtab=all");
-                  }}
-                  className={`w-full text-left p-3 rounded-md border transition-colors ${
-                    !selectedMarket
-                      ? "border-primary bg-primary/10"
-                      : "border-border hover:bg-secondary/50"
-                  }`}
-                >
-                  <div className="font-mono font-semibold">All Markets</div>
-                  <div className="text-xs text-muted-foreground mt-1">
-                    View aggregate data from all markets
-                  </div>
-                </button>
-              )}
+          {/* Main Content */}
+          <div
+            className="flex flex-1 mt-2 -mx-6 overflow-hidden"
+            onMouseLeave={() => {
+              if (hoverTimer) clearTimeout(hoverTimer);
+              setHoveredEventId(null);
+            }}
+          >
+            {/* Markets List */}
+            <div
+              className={`px-6 overflow-y-auto transition-all duration-300 ${
+                hoveredEvent ? "w-1/2" : "w-full"
+              }`}
+            >
+              <div className="space-y-2 py-2 pb-8">
+                {/* All Markets Option */}
+                {!searchQuery && (
+                  <button
+                    onClick={() => {
+                      clearSelectedMarket();
+                      setOpen(false);
+                      setSearchQuery("");
+                      router.push("/dashboard?tab=main&subtab=all");
+                    }}
+                    className={`w-full text-left p-3 rounded-md border transition-colors ${
+                      !selectedMarket
+                        ? "border-primary bg-primary/10"
+                        : "border-border hover:bg-secondary/50"
+                    }`}
+                  >
+                    <div className="font-mono font-semibold">All Markets</div>
+                    <div className="text-xs text-muted-foreground mt-1">
+                      View aggregate data from all markets
+                    </div>
+                  </button>
+                )}
 
-              {/* Recently Viewed */}
-              {!searchQuery && recentMarkets.length > 0 && (
-                <div className="pt-2">
-                  <div className="flex items-center gap-2 px-2 py-1 text-xs font-mono text-muted-foreground">
-                    <Clock className="w-3 h-3" />
-                    <span>RECENTLY VIEWED</span>
-                  </div>
-                  {recentMarkets.map((market) => (
-                    <button
-                      key={market.marketId}
-                      onClick={() => {
-                        setSelectedMarket(market);
-                        setOpen(false);
-                        // Navigate to market focus tab
-                        router.push("/dashboard?tab=main&subtab=marketfocus");
-                      }}
-                      className="w-full text-left p-3 rounded-md border border-border hover:bg-secondary/50 transition-colors"
-                    >
-                      <div className="flex items-start gap-3">
-                        {market.icon && (
-                          <img
-                            src={market.icon}
-                            alt=""
-                            className="w-8 h-8 rounded-full flex-shrink-0"
-                          />
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <div className="font-mono font-semibold text-sm">
-                            {market.eventTitle}
-                          </div>
-                          <div className="text-xs text-muted-foreground mt-0.5 truncate">
-                            {market.name}
+                {/* Recently Viewed */}
+                {!searchQuery && recentMarkets.length > 0 && (
+                  <div className="pt-2">
+                    <div className="flex items-center gap-2 px-2 py-1 text-xs font-mono text-muted-foreground">
+                      <Clock className="w-3 h-3" />
+                      <span>RECENTLY VIEWED</span>
+                    </div>
+                    {recentMarkets.map((market) => (
+                      <button
+                        key={market.marketId}
+                        onClick={() => {
+                          setSelectedMarket(market);
+                          setOpen(false);
+                          // Navigate to market focus tab
+                          router.push("/dashboard?tab=main&subtab=marketfocus");
+                        }}
+                        className="w-full text-left p-3 rounded-md border border-border hover:bg-secondary/50 transition-colors"
+                      >
+                        <div className="flex items-start gap-3">
+                          {market.icon && (
+                            <img
+                              src={market.icon}
+                              alt=""
+                              className="w-8 h-8 rounded-full flex-shrink-0"
+                            />
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <div className="font-mono font-semibold text-sm">
+                              {market.eventTitle}
+                            </div>
+                            <div className="text-xs text-muted-foreground mt-0.5 truncate">
+                              {market.name}
+                            </div>
                           </div>
                         </div>
+                      </button>
+                    ))}
+                    <div className="h-2 border-b border-border my-2" />
+                  </div>
+                )}
+
+                {/* Search Results / Top Markets */}
+                {loading && (
+                  <div className="text-center py-8 text-sm text-muted-foreground font-mono">
+                    Loading markets...
+                  </div>
+                )}
+
+                {error && (
+                  <div className="text-center py-8 text-sm text-destructive font-mono">
+                    {error}
+                  </div>
+                )}
+
+                {!loading && !error && markets.length === 0 && searchQuery && (
+                  <div className="text-center py-8 text-sm text-muted-foreground font-mono">
+                    No markets found for &quot;{searchQuery}&quot;
+                  </div>
+                )}
+
+                {!loading && !error && markets.length > 0 && (
+                  <>
+                    {!searchQuery && (
+                      <div className="flex items-center gap-2 px-2 py-1 text-xs font-mono text-muted-foreground">
+                        <TrendingUp className="w-3 h-3" />
+                        <span>TOP MARKETS BY VOLUME</span>
                       </div>
-                    </button>
-                  ))}
-                  <div className="h-2 border-b border-border my-2" />
-                </div>
-              )}
+                    )}
+                    {markets.map((eventOutcome) => {
+                      const isMultiMarket = eventOutcome.markets.length > 1;
+                      const primaryMarket = eventOutcome.markets[0];
+                      const topOutcome = eventOutcome.summary?.topOutcome;
+                      const isHovered = hoveredEventId === eventOutcome.eventId;
 
-              {/* Search Results / Top Markets */}
-              {loading && (
-                <div className="text-center py-8 text-sm text-muted-foreground font-mono">
-                  Loading markets...
-                </div>
-              )}
-
-              {error && (
-                <div className="text-center py-8 text-sm text-destructive font-mono">
-                  {error}
-                </div>
-              )}
-
-              {!loading && !error && markets.length === 0 && searchQuery && (
-                <div className="text-center py-8 text-sm text-muted-foreground font-mono">
-                  No markets found for &quot;{searchQuery}&quot;
-                </div>
-              )}
-
-              {!loading && !error && markets.length > 0 && (
-                <>
-                  {!searchQuery && (
-                    <div className="flex items-center gap-2 px-2 py-1 text-xs font-mono text-muted-foreground">
-                      <TrendingUp className="w-3 h-3" />
-                      <span>TOP MARKETS BY VOLUME</span>
-                    </div>
-                  )}
-                  {markets.map((eventOutcome) => {
-                    const isMultiMarket = eventOutcome.markets.length > 1;
-                    const primaryMarket = eventOutcome.markets[0];
-                    const topOutcome = eventOutcome.summary?.topOutcome;
-                    const isHovered = hoveredEventId === eventOutcome.eventId;
-
-                    return (
-                      <div
-                        key={eventOutcome.eventId}
-                        className="relative"
-                        onMouseEnter={(e) => {
-                          if (isMultiMarket) {
-                            setHoveredEventId(eventOutcome.eventId);
-                            const rect =
-                              e.currentTarget.getBoundingClientRect();
-                            const viewportHeight = window.innerHeight;
-                            const spaceBelow = viewportHeight - rect.bottom;
-                            const dropdownMaxHeight = 400;
-
-                            // If not enough space below, position above
-                            if (
-                              spaceBelow < dropdownMaxHeight &&
-                              rect.top > dropdownMaxHeight
-                            ) {
-                              setDropdownStyle({
-                                bottom: "100%",
-                                top: "auto",
-                                marginBottom: "4px",
-                                marginTop: "0",
-                              });
-                            } else {
-                              setDropdownStyle({
-                                top: "100%",
-                                bottom: "auto",
-                                marginTop: "4px",
-                                marginBottom: "0",
-                              });
-                            }
-                          }
-                        }}
-                        onMouseLeave={() =>
-                          isMultiMarket && setHoveredEventId(null)
-                        }
-                      >
-                        {/* Main Event Button */}
-                        <button
-                          onClick={() => {
+                      return (
+                        <div
+                          key={eventOutcome.eventId}
+                          className="relative"
+                          onMouseEnter={() => {
+                            if (hoverTimer) clearTimeout(hoverTimer);
                             if (isMultiMarket) {
-                              handleSelectEvent(eventOutcome);
+                              const timer = setTimeout(() => {
+                                setHoveredEventId(eventOutcome.eventId);
+                              }, 1000);
+                              setHoverTimer(timer);
                             } else {
-                              handleSelectForMarketFocus(
-                                primaryMarket,
-                                eventOutcome,
-                              );
+                              setHoveredEventId(null);
                             }
                           }}
-                          className="w-full text-left p-3 rounded-md border border-border hover:bg-secondary/50 transition-colors"
                         >
-                          <div className="flex items-start gap-3">
-                            {(primaryMarket?.icon || primaryMarket?.image) && (
-                              <img
-                                src={primaryMarket.icon || primaryMarket.image}
-                                alt=""
-                                className="w-8 h-8 rounded-full flex-shrink-0"
-                              />
-                            )}
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2">
-                                <div className="font-mono font-semibold text-sm">
-                                  {eventOutcome.title}
+                          {/* Main Event Button */}
+                          <button
+                            onClick={() => {
+                              if (isMultiMarket) {
+                                handleSelectEvent(eventOutcome);
+                              } else {
+                                handleSelectForMarketFocus(
+                                  primaryMarket,
+                                  eventOutcome,
+                                );
+                              }
+                            }}
+                            className={`w-full text-left p-3 rounded-md border transition-colors ${
+                              isHovered
+                                ? "border-primary bg-primary/10"
+                                : "border-border hover:bg-secondary/50"
+                            }`}
+                          >
+                            <div className="flex items-start gap-3">
+                              {(primaryMarket?.icon ||
+                                primaryMarket?.image) && (
+                                <img
+                                  src={
+                                    primaryMarket.icon || primaryMarket.image
+                                  }
+                                  alt=""
+                                  className="w-8 h-8 rounded-full flex-shrink-0"
+                                />
+                              )}
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <div className="font-mono font-semibold text-sm">
+                                    {eventOutcome.title}
+                                  </div>
+                                  {isMultiMarket && (
+                                    <div className="flex items-center gap-1">
+                                      <span className="px-1.5 py-0.5 text-xs font-mono bg-primary/20 text-primary rounded">
+                                        {eventOutcome.markets.length}
+                                      </span>
+                                      <ChevronRight
+                                        className={`w-3 h-3 text-muted-foreground transition-transform ${
+                                          isHovered ? "translate-x-1" : ""
+                                        }`}
+                                      />
+                                    </div>
+                                  )}
                                 </div>
-                                {isMultiMarket && (
-                                  <div className="flex items-center gap-1">
-                                    <span className="px-1.5 py-0.5 text-xs font-mono bg-primary/20 text-primary rounded">
-                                      {eventOutcome.markets.length}
-                                    </span>
-                                    <ChevronRight
-                                      className={`w-3 h-3 text-muted-foreground transition-transform ${
-                                        isHovered ? "rotate-90" : ""
-                                      }`}
-                                    />
+                                {topOutcome && (
+                                  <div className="text-xs text-muted-foreground mt-0.5">
+                                    {topOutcome.name}:{" "}
+                                    {Math.round(topOutcome.probability * 100)}%
+                                  </div>
+                                )}
+                                {eventOutcome.totalVolume !== undefined && (
+                                  <div className="text-xs text-muted-foreground mt-1">
+                                    Vol: {formatUSD(eventOutcome.totalVolume)}
                                   </div>
                                 )}
                               </div>
-                              {topOutcome && (
-                                <div className="text-xs text-muted-foreground mt-0.5">
-                                  {topOutcome.name}:{" "}
-                                  {Math.round(topOutcome.probability * 100)}%
-                                </div>
-                              )}
-                              {eventOutcome.totalVolume !== undefined && (
-                                <div className="text-xs text-muted-foreground mt-1">
-                                  Vol: {formatUSD(eventOutcome.totalVolume)}
-                                </div>
-                              )}
                             </div>
-                          </div>
-                        </button>
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </>
+                )}
+              </div>
+            </div>
 
-                        {/* Submarkets Dropdown (shown on hover for multi-market events) */}
-                        {isMultiMarket && isHovered && (
-                          <div
-                            className="absolute left-0 right-0 z-50 bg-background/95 backdrop-blur-sm border-2 border-primary/30 rounded-lg shadow-2xl max-h-[400px] overflow-y-auto animate-in fade-in slide-in-from-top-2 duration-200"
-                            style={dropdownStyle}
-                          >
-                            <div className="p-2 space-y-1">
-                              <div className="px-2 py-1 text-xs font-mono font-bold text-primary sticky top-0 bg-background/95 backdrop-blur-sm border-b border-primary/20 mb-1 z-10">
-                                SELECT MARKET:
-                              </div>
-                              {eventOutcome.markets.map((market) => (
-                                <button
-                                  key={market.id}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleSelectForMarketFocus(
-                                      market,
-                                      eventOutcome,
-                                    );
-                                    setHoveredEventId(null);
-                                  }}
-                                  className="w-full text-left px-3 py-2 rounded-md hover:bg-primary/10 hover:border-l-2 hover:border-primary transition-all duration-150"
-                                >
-                                  <div className="flex items-center justify-between gap-2">
-                                    <span className="text-sm font-mono truncate">
-                                      {market.displayName || market.title}
-                                    </span>
-                                    <div className="flex items-center gap-2 flex-shrink-0">
-                                      {market.primaryOutcome && (
-                                        <span className="text-xs font-mono font-bold">
-                                          {Math.round(
-                                            market.primaryOutcome.probability *
-                                              100,
-                                          )}
-                                          %
-                                        </span>
-                                      )}
-                                      {market.volume !== undefined && (
-                                        <span className="text-xs font-mono text-muted-foreground">
-                                          {formatUSD(market.volume)}
-                                        </span>
-                                      )}
-                                    </div>
-                                  </div>
-                                </button>
-                              ))}
-                            </div>
+            {/* Submarkets View */}
+            {hoveredEvent && (
+              <div className="w-1/2 border-l border-border overflow-y-auto animate-in fade-in-25 duration-300">
+                <div className="p-2 space-y-1">
+                  <div className="px-2 py-1 text-xs font-mono font-bold text-primary sticky top-0 bg-background/95 backdrop-blur-sm border-b border-primary/20 mb-1 z-10">
+                    SELECT MARKET:
+                  </div>
+                  {hoveredEvent.markets.map((market) => {
+                    const isSubmarketSelected =
+                      selectedMarket?.marketId === market.id;
+                    return (
+                      <button
+                        key={market.id}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleSelectForMarketFocus(market, hoveredEvent);
+                          setHoveredEventId(null);
+                        }}
+                        className={`w-full text-left px-3 py-2 rounded-md hover:bg-primary/10 transition-all duration-150 ${
+                          isSubmarketSelected ? "bg-primary/20" : ""
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-sm font-mono truncate">
+                            {market.displayName || market.title}
+                          </span>
+                          <div className="flex items-center gap-4 flex-shrink-0">
+                            {market.primaryOutcome && (
+                              <>
+                                <span className="text-xs font-mono font-bold w-8 text-right">
+                                  {Math.round(
+                                    market.primaryOutcome.probability * 100,
+                                  )}
+                                  %
+                                </span>
+                                <span className="text-xs font-mono text-muted-foreground w-16 text-right">
+                                  {formatUSD(market.primaryOutcome.probability)}
+                                </span>
+                              </>
+                            )}
                           </div>
-                        )}
-                      </div>
+                        </div>
+                      </button>
                     );
                   })}
-                </>
-              )}
-            </div>
+                </div>
+              </div>
+            )}
           </div>
         </DialogContent>
       </Dialog>

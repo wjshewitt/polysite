@@ -20,15 +20,36 @@ import { MarketFocus } from "@/components/MarketFocus";
 import { SettingsModal } from "@/components/SettingsModal";
 import { DiagnosticsModal } from "@/components/DiagnosticsModal";
 import { usePolymarketStore } from "@/store/usePolymarketStore";
-import { Settings, Activity } from "lucide-react";
 
 function DashboardContent() {
   const searchParams = useSearchParams();
   const [currentTab, setCurrentTab] = useState<TabView>("main");
   const [currentSubTab, setCurrentSubTab] = useState<SubTabView>("all");
-  const [settingsOpen, setSettingsOpen] = useState(false);
-  const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
   const clobAuth = usePolymarketStore((state) => state.clobAuth);
+
+  // Settings and diagnostics state from URL
+  const settingsOpen = searchParams?.get("settings") === "true";
+  const diagnosticsOpen = searchParams?.get("diagnostics") === "true";
+
+  const setSettingsOpen = (open: boolean) => {
+    const params = new URLSearchParams(searchParams?.toString());
+    if (open) {
+      params.set("settings", "true");
+    } else {
+      params.delete("settings");
+    }
+    window.history.pushState(null, "", `?${params.toString()}`);
+  };
+
+  const setDiagnosticsOpen = (open: boolean) => {
+    const params = new URLSearchParams(searchParams?.toString());
+    if (open) {
+      params.set("diagnostics", "true");
+    } else {
+      params.delete("diagnostics");
+    }
+    window.history.pushState(null, "", `?${params.toString()}`);
+  };
 
   // Handle URL parameters for tab/subtab
   useEffect(() => {
@@ -63,24 +84,6 @@ function DashboardContent() {
           currentSubTab={currentSubTab}
           onSubTabChange={setCurrentSubTab}
           isAuthenticated={clobAuth.isAuthenticated}
-          rightContent={
-            <>
-              <button
-                onClick={() => setDiagnosticsOpen(true)}
-                className="p-2 hover:bg-muted transition-colors border border-border"
-                title="Diagnostics"
-              >
-                <Activity className="w-4 h-4 text-muted-foreground hover:text-neutral transition-colors" />
-              </button>
-              <button
-                onClick={() => setSettingsOpen(true)}
-                className="p-2 hover:bg-muted transition-colors border border-border"
-                title="Settings"
-              >
-                <Settings className="w-4 h-4 text-muted-foreground hover:text-neutral transition-colors" />
-              </button>
-            </>
-          }
         />
       </div>
 

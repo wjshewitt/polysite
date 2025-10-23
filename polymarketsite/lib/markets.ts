@@ -11,66 +11,63 @@ import {
 } from "@/types/markets";
 import { filterNormalizedMarkets } from "@/lib/marketFilters";
 
-interface PriceCalculationResult {
+export interface PriceDisplayData {
   displayPrice: number;
-  source: PriceSource;
-  spread: number;
+  priceSource: PriceSource;
   bestBid: number | null;
   bestAsk: number | null;
-  lastTradedPrice: number | null;
+  spread: number;
   spreadWarning: boolean;
   impliedProbability: number;
+  lastTradedPrice: number | null;
 }
 
-function calculateDisplayPrice(
+export function calculateDisplayPrice(
   bestBid: number | null,
   bestAsk: number | null,
   lastTradedPrice: number | null,
-): PriceCalculationResult {
-  const source: PriceSource = "fallback";
-
-  // Validation
-  if (bestBid === null || bestAsk === null || bestBid >= bestAsk) {
-    const price = lastTradedPrice || 0.5;
+): PriceDisplayData {
+  // No orderbook data - use fallback
+  if (!bestBid || !bestAsk) {
     return {
-      displayPrice: price,
-      source: "fallback",
-      spread: 0,
+      displayPrice: lastTradedPrice || 0.5,
+      priceSource: "fallback",
       bestBid,
       bestAsk,
-      lastTradedPrice,
+      spread: 0,
       spreadWarning: false,
-      impliedProbability: price,
+      impliedProbability: lastTradedPrice || 0.5,
+      lastTradedPrice,
     };
   }
 
-  const midpoint = (bestBid + bestAsk) / 2;
   const absoluteSpread = bestAsk - bestBid;
+  const midpoint = (bestBid + bestAsk) / 2;
 
-  // Apply $0.10 threshold rule
+  // Wide spread (>$0.10) - use last traded price
   if (absoluteSpread > 0.1) {
     return {
       displayPrice: lastTradedPrice || midpoint,
-      source: lastTradedPrice ? "last_trade" : "midpoint",
-      spread: absoluteSpread,
+      priceSource: lastTradedPrice ? "last_trade" : "midpoint",
       bestBid,
       bestAsk,
-      lastTradedPrice,
+      spread: absoluteSpread,
       spreadWarning: true,
       impliedProbability: midpoint,
+      lastTradedPrice,
     };
   }
 
-  // Normal case: use midpoint
+  // Normal case - use midpoint
   return {
     displayPrice: midpoint,
-    source: "midpoint",
-    spread: absoluteSpread,
+    priceSource: "midpoint",
     bestBid,
     bestAsk,
-    lastTradedPrice,
+    spread: absoluteSpread,
     spreadWarning: false,
     impliedProbability: midpoint,
+    lastTradedPrice,
   };
 }
 
@@ -378,9 +375,14 @@ const normalizeOutcomes = (
 
     const bestBid = token?.bestBid ? Number(token.bestBid) : null;
     const bestAsk = token?.bestAsk ? Number(token.bestAsk) : null;
-    const lastTradedPrice = raw.lastTradePrice
-      ? Number(raw.lastTradePrice)
-      : null;
+    // Use token-specific price first, then outcome price from array, then market-level price as fallback
+    const lastTradedPrice = token?.price 
+      ? Number(token.price)
+      : prices[index] !== undefined
+        ? Number(prices[index])
+        : raw.lastTradePrice
+          ? Number(raw.lastTradePrice)
+          : null;
 
     const priceResult = calculateDisplayPrice(
       bestBid,
@@ -394,7 +396,7 @@ const normalizeOutcomes = (
       probability: priceResult.impliedProbability,
       impliedProbability: priceResult.impliedProbability,
       lastTradedPrice: priceResult.lastTradedPrice,
-      priceSource: priceResult.source,
+      priceSource: priceResult.priceSource,
       spread: priceResult.spread,
       spreadWarning: priceResult.spreadWarning,
       bestBid: priceResult.bestBid,
@@ -404,10 +406,51 @@ const normalizeOutcomes = (
       liquidity: token?.liquidity ? Number(token.liquidity) : undefined,
       change24h: token?.change24h ? Number(token.change24h) : undefined,
       lastUpdated: now,
+      orderbookUpdated: now,
     };
   });
 
   normalized.sort((a, b) => b.price - a.price);
+
+  // Validate and fix binary market prices (must sum to ~1.0)
+  if (normalized.length === 2) {
+    const total = normalized[0].price + normalized[1].price;
+    const tolerance = 0.02; // Allow 2% tolerance for rounding/spread
+    
+    if (Math.abs(total - 1.0) > tolerance) {
+      console.warn(
+        `Binary market price validation failed: ${normalized[0].name}=$${normalized[0].price.toFixed(3)}, ${normalized[1].name}=$${normalized[1].price.toFixed(3)}, Total=${total.toFixed(3)} (expected ~1.0)`,
+      );
+      
+      // If one outcome has real data and the other doesn't, calculate complement
+      const hasRealDataFirst = normalized[0].priceSource !== 'fallback';
+      const hasRealDataSecond = normalized[1].priceSource !== 'fallback';
+      
+      if (hasRealDataFirst && !hasRealDataSecond) {
+        // Use first outcome's price, calculate second as complement
+        const complementPrice = Math.max(0, Math.min(1, 1.0 - normalized[0].price));
+        console.log(`  → Fixed: Using ${normalized[1].name} = 1.0 - ${normalized[0].price.toFixed(3)} = ${complementPrice.toFixed(3)}`);
+        normalized[1] = {
+          ...normalized[1],
+          price: complementPrice,
+          impliedProbability: complementPrice,
+          priceSource: 'calculated_complement' as PriceSource,
+        };
+      } else if (hasRealDataSecond && !hasRealDataFirst) {
+        // Use second outcome's price, calculate first as complement
+        const complementPrice = Math.max(0, Math.min(1, 1.0 - normalized[1].price));
+        console.log(`  → Fixed: Using ${normalized[0].name} = 1.0 - ${normalized[1].price.toFixed(3)} = ${complementPrice.toFixed(3)}`);
+        normalized[0] = {
+          ...normalized[0],
+          price: complementPrice,
+          impliedProbability: complementPrice,
+          priceSource: 'calculated_complement' as PriceSource,
+        };
+      }
+      // Re-sort after fix
+      normalized.sort((a, b) => b.price - a.price);
+    }
+  }
 
   return normalized;
 };

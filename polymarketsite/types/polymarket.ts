@@ -261,6 +261,7 @@ export interface SelectedMarketState {
   icon?: string;
   image?: string;
   selectedAt: number;
+  isEventView?: boolean;
 }
 
 // Store State

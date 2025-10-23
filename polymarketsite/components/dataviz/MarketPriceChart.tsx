@@ -53,10 +53,13 @@ export function MarketPriceChart({
       setError(null);
       
       // Fetch market by slug or get a top market as example
-      let marketData: GammaEvent;
+      let marketData: GammaEvent | null = null;
       
       if (eventSlug) {
         marketData = await gammaAPI.fetchEventBySlug(eventSlug);
+        if (!marketData) {
+          throw new Error(`Market not found: ${eventSlug}`);
+        }
       } else {
         // Get a top market as demo
         const events = await gammaAPI.fetchEvents({
@@ -125,6 +128,10 @@ export function MarketPriceChart({
     try {
       // Fetch updated market data
       const updatedMarket = await gammaAPI.fetchEventBySlug(market.slug);
+      if (!updatedMarket) {
+        console.warn("Failed to fetch updated market data");
+        return;
+      }
       setMarket(updatedMarket);
 
       const primaryMarket = updatedMarket.markets[0];

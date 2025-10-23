@@ -160,6 +160,19 @@ class RealtimeService {
     }
   };
 
+  private handleError = (error: any): void => {
+    // Custom error handler to prevent errors from bubbling up to ErrorBoundary
+    const errorMessage = error?.message || error?.toString() || "WebSocket error";
+    console.warn("⚠️ WebSocket error (handled):", errorMessage);
+    
+    // Only log the error, don't throw it
+    if (error && typeof error === 'object' && Object.keys(error).length > 0) {
+      console.debug("Error details:", error);
+    }
+    
+    // Don't reconnect on every error - let onClose handle it
+  };
+
   private handleStatusChange = (status: ConnectionStatus): void => {
     console.log("📡 Connection status changed:", status);
 
@@ -687,7 +700,7 @@ class RealtimeService {
                 ...o,
                 price: priceResult.displayPrice,
                 impliedProbability: priceResult.impliedProbability,
-                priceSource: priceResult.source,
+                priceSource: priceResult.priceSource,
                 spread: priceResult.spread,
                 spreadWarning: priceResult.spreadWarning,
                 bestBid: priceResult.bestBid,
@@ -762,7 +775,7 @@ class RealtimeService {
                 lastTradedPrice: Number(lastTradePrice.price),
                 price: priceResult.displayPrice,
                 impliedProbability: priceResult.impliedProbability,
-                priceSource: priceResult.source,
+                priceSource: priceResult.priceSource,
                 spread: priceResult.spread,
                 spreadWarning: priceResult.spreadWarning,
               };
@@ -1031,6 +1044,7 @@ class RealtimeService {
         onMessage: this.handleMessage,
         onConnect: this.handleConnect,
         onStatusChange: this.handleStatusChange,
+        onError: this.handleError,
         autoReconnect: false,
         pingInterval: this.heartbeatInterval,
       });

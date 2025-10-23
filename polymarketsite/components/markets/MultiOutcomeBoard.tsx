@@ -7,10 +7,18 @@ import type {
   EventOutcomeRow,
   OutcomeTimeframe,
 } from "@/types/markets";
-import { ArrowUpDown, TrendingUp, TrendingDown, Info } from "lucide-react";
+import {
+  ArrowUpDown,
+  TrendingUp,
+  TrendingDown,
+  Info,
+  AlertTriangle,
+} from "lucide-react";
 import { usePolymarketStore } from "@/store/usePolymarketStore";
 import { clobService } from "@/services/clob";
 import type { AggOrderbook } from "@/types/polymarket";
+import { calculateDisplayPrice } from "@/lib/markets";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 interface MultiOutcomeBoardProps {
   summary: EventOutcomeSummary;
@@ -85,9 +93,7 @@ const computeChange = (
 
   const abs = latest.probability - baseline.probability;
   const pct =
-    baseline.probability !== 0
-      ? (abs / baseline.probability) * 100
-      : undefined;
+    baseline.probability !== 0 ? (abs / baseline.probability) * 100 : undefined;
 
   return {
     abs,
@@ -166,7 +172,10 @@ export function MultiOutcomeBoard({
   );
 
   const [visibleCount, setVisibleCount] = useState(10);
-  const visibleRows = useMemo(() => rows.slice(0, visibleCount), [rows, visibleCount]);
+  const visibleRows = useMemo(
+    () => rows.slice(0, visibleCount),
+    [rows, visibleCount],
+  );
   const hasMore = rows.length > visibleRows.length;
 
   const tryQuickTrade = useCallback(
@@ -204,14 +213,21 @@ export function MultiOutcomeBoard({
             <span className="flex items-center gap-2">
               <ArrowUpDown className="w-3.5 h-3.5" />
               <span>
-                Outcomes: <span className="text-foreground font-semibold">{summary.totalOutcomes}</span>
+                Outcomes:{" "}
+                <span className="text-foreground font-semibold">
+                  {summary.totalOutcomes}
+                </span>
               </span>
             </span>
             <span>Event Vol: {formatDollars(totals.totalVolume)}</span>
             <span>Event Liq: {formatDollars(totals.totalLiquidity)}</span>
             {summary.topOutcome && (
               <span>
-                Top: <span className="font-bold text-buy">{summary.topOutcome.name}</span> ({formatPct(summary.topOutcome.probability)})
+                Top:{" "}
+                <span className="font-bold text-buy">
+                  {summary.topOutcome.name}
+                </span>{" "}
+                ({formatPct(summary.topOutcome.probability)})
               </span>
             )}
           </div>
@@ -265,9 +281,15 @@ export function MultiOutcomeBoard({
                   ? "text-neutral"
                   : "text-foreground";
 
-            const ob = row.yesTokenId ? obByAsset.get(row.yesTokenId) : undefined;
-            const bestYesBid = row.bestYesBid ?? (ob?.bids?.[0]?.price ? Number(ob.bids[0].price) : undefined);
-            const bestYesAsk = row.bestYesAsk ?? (ob?.asks?.[0]?.price ? Number(ob.asks[0].price) : undefined);
+            const ob = row.yesTokenId
+              ? obByAsset.get(row.yesTokenId)
+              : undefined;
+            const bestYesBid =
+              row.bestYesBid ??
+              (ob?.bids?.[0]?.price ? Number(ob.bids[0].price) : undefined);
+            const bestYesAsk =
+              row.bestYesAsk ??
+              (ob?.asks?.[0]?.price ? Number(ob.asks[0].price) : undefined);
             const bestNoAsk =
               row.bestNoAsk ??
               (bestYesBid !== undefined
@@ -278,10 +300,26 @@ export function MultiOutcomeBoard({
               (bestYesAsk !== undefined
                 ? clampProbabilityValue(1 - bestYesAsk)
                 : undefined);
-            const canBuy = clobAuth.isAuthenticated && bestYesAsk !== undefined && row.yesTokenId;
-            const canSell = clobAuth.isAuthenticated && bestYesBid !== undefined && row.yesTokenId;
-            const change = computeChange(row, selectedTimeframe, marketHistories);
+            const canBuy =
+              clobAuth.isAuthenticated &&
+              bestYesAsk !== undefined &&
+              row.yesTokenId;
+            const canSell =
+              clobAuth.isAuthenticated &&
+              bestYesBid !== undefined &&
+              row.yesTokenId;
+            const change = computeChange(
+              row,
+              selectedTimeframe,
+              marketHistories,
+            );
             const changePct = change.pct;
+
+            const priceData = calculateDisplayPrice(
+              bestYesBid ?? null,
+              bestYesAsk ?? null,
+              row.lastQuoteAt ? row.lastQuoteAt / 1000 : null,
+            );
 
             return (
               <div
@@ -295,7 +333,9 @@ export function MultiOutcomeBoard({
                     handleSelect(row.marketId);
                   }
                 }}
-                onMouseEnter={() => ensureOrderbook(row.yesTokenId, row.marketId)}
+                onMouseEnter={() =>
+                  ensureOrderbook(row.yesTokenId, row.marketId)
+                }
                 className="relative w-full border border-border bg-card px-3 py-2 overflow-hidden hover:bg-muted/50 transition-colors cursor-pointer"
               >
                 <div
@@ -306,24 +346,29 @@ export function MultiOutcomeBoard({
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2 min-w-0">
                       <span className="text-muted-foreground">#{row.rank}</span>
-                      <span className={`font-semibold truncate ${textColor}`}>{row.name}</span>
+                      <span className={`font-semibold truncate ${textColor}`}>
+                        {row.name}
+                      </span>
                     </div>
                     <div className="flex items-center gap-2">
-                      {changePct !== undefined && Math.abs(changePct) >= 0.1 && (
-                        <span
-                          className={`flex items-center gap-1 text-[10px] ${
-                            changePct >= 0 ? "text-buy" : "text-sell"
-                          }`}
-                        >
-                          {changePct >= 0 ? (
-                            <TrendingUp className="w-3 h-3" />
-                          ) : (
-                            <TrendingDown className="w-3 h-3" />
-                          )}
-                          {`${changePct >= 0 ? "+" : ""}${changePct.toFixed(1)}%`}
-                        </span>
-                      )}
-                      <span className={`font-bold ${textColor}`}>{formatPct(row.probability)}</span>
+                      {changePct !== undefined &&
+                        Math.abs(changePct) >= 0.1 && (
+                          <span
+                            className={`flex items-center gap-1 text-[10px] ${
+                              changePct >= 0 ? "text-buy" : "text-sell"
+                            }`}
+                          >
+                            {changePct >= 0 ? (
+                              <TrendingUp className="w-3 h-3" />
+                            ) : (
+                              <TrendingDown className="w-3 h-3" />
+                            )}
+                            {`${changePct >= 0 ? "+" : ""}${changePct.toFixed(1)}%`}
+                          </span>
+                        )}
+                      <span className={`font-bold ${textColor}`}>
+                        {formatPct(row.probability)}
+                      </span>
                     </div>
                   </div>
                   <div className="flex flex-wrap items-center gap-3 text-[10px] text-muted-foreground">
@@ -356,7 +401,9 @@ export function MultiOutcomeBoard({
                           : "Sign in to trade"
                       }
                       className={`px-1.5 py-0.5 text-[10px] border ${
-                        canBuy ? "border-buy text-buy hover:bg-buy/10" : "border-border text-muted-foreground cursor-not-allowed"
+                        canBuy
+                          ? "border-buy text-buy hover:bg-buy/10"
+                          : "border-border text-muted-foreground cursor-not-allowed"
                       }`}
                     >
                       BUY 1
@@ -377,13 +424,16 @@ export function MultiOutcomeBoard({
                           : "Sign in to trade"
                       }
                       className={`px-1.5 py-0.5 text-[10px] border ${
-                        canSell ? "border-sell text-sell hover:bg-sell/10" : "border-border text-muted-foreground cursor-not-allowed"
+                        canSell
+                          ? "border-sell text-sell hover:bg-sell/10"
+                          : "border-border text-muted-foreground cursor-not-allowed"
                       }`}
                     >
                       SELL 1
                     </button>
                     <span className="text-[10px] text-muted-foreground">
-                      Sell Yes {formatCents(bestYesBid)} • Sell No {formatCents(bestNoBid)}
+                      Sell Yes {formatCents(bestYesBid)} • Sell No{" "}
+                      {formatCents(bestNoBid)}
                     </span>
                   </div>
                 </div>
