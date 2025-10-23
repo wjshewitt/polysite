@@ -27,7 +27,9 @@ function DashboardContent() {
   const [currentTab, setCurrentTab] = useState<TabView>("main");
   const [currentSubTab, setCurrentSubTab] = useState<SubTabView>("all");
   const clobAuth = usePolymarketStore((state) => state.clobAuth);
-  const useSidebarNavigation = usePolymarketStore((state) => state.useSidebarNavigation);
+  const useSidebarNavigation = usePolymarketStore(
+    (state) => state.useSidebarNavigation,
+  );
 
   // Settings and diagnostics state from URL
   const settingsOpen = searchParams?.get("settings") === "true";
@@ -95,11 +97,13 @@ function DashboardContent() {
       {!(
         currentTab === "main" &&
         (currentSubTab === "livedata" || currentSubTab === "marketfocus")
-      ) && (
-        <div className="mb-4 flex-shrink-0">
-          <ClobAuth />
-        </div>
-      )}
+      ) &&
+        (typeof window === "undefined" ||
+          sessionStorage.getItem("hideClobAuth") !== "true") && (
+          <div className="mb-4 flex-shrink-0">
+            <ClobAuth />
+          </div>
+        )}
 
       {/* Crypto Ticker - Fixed (hide on livedata and marketfocus subtabs) */}
       {!(
