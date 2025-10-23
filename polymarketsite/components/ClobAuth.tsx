@@ -11,7 +11,12 @@ export function ClobAuth() {
   const clearClobData = usePolymarketStore((state) => state.clearClobData);
 
   const [showAuthForm, setShowAuthForm] = useState(false);
-  const [showReadOnlyMessage, setShowReadOnlyMessage] = useState(true);
+  const [showComponent, setShowComponent] = useState(() => {
+    if (typeof window !== "undefined") {
+      return sessionStorage.getItem("hideClobAuth") !== "true";
+    }
+    return true;
+  });
   const [authMethod, setAuthMethod] = useState<"privateKey" | "apiKey">(
     "privateKey",
   );
@@ -169,26 +174,31 @@ export function ClobAuth() {
     );
   }
 
+  if (!showComponent) {
+    return null;
+  }
+
   if (!showAuthForm) {
     return (
       <div className="bg-card border border-border px-4 py-2">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-2 h-2 bg-muted-foreground rounded-full" />
-            {showReadOnlyMessage && (
-              <div className="flex items-center gap-2">
-                <div className="font-mono text-xs text-muted-foreground">
-                  Read-only mode • Connect to trade
-                </div>
-                <button
-                  onClick={() => setShowReadOnlyMessage(false)}
-                  className="text-muted-foreground hover:text-foreground transition-colors text-xs"
-                  title="Dismiss message"
-                >
-                  ✕
-                </button>
+            <div className="flex items-center gap-2">
+              <div className="font-mono text-xs text-muted-foreground">
+                Read-only mode • Connect to trade
               </div>
-            )}
+              <button
+                onClick={() => {
+                  setShowComponent(false);
+                  sessionStorage.setItem("hideClobAuth", "true");
+                }}
+                className="text-muted-foreground hover:text-foreground transition-colors text-xs"
+                title="Dismiss component"
+              >
+                ✕
+              </button>
+            </div>
           </div>
           <button
             onClick={() => setShowAuthForm(true)}
