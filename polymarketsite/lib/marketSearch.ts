@@ -26,9 +26,8 @@ export async function searchMarkets(
   }
 
   try {
-    // Fetch top markets from Gamma API
-    const events = await gammaAPI.fetchEvents({
-      limit: 100, // Fetch more for client-side filtering
+    // Fetch all markets from Gamma API with pagination
+    const events = await gammaAPI.fetchAllEvents({
       order: "volume",
       ascending: false,
       closed: false,

@@ -6,6 +6,7 @@ import { ThemeProvider } from "@/components/ThemeProvider";
 import { ConvexProvider } from "@/components/ConvexProvider";
 import { ClerkProvider } from "@clerk/nextjs";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { ConsoleArt } from "@/components/ConsoleArt";
 
 const jetbrainsMono = JetBrains_Mono({
   subsets: ["latin"],
@@ -83,6 +84,7 @@ export default function RootLayout({
         <ClerkProvider>
           <ConvexProvider>
             <ErrorBoundary>
+              <ConsoleArt />
               <ThemeProvider>{children}</ThemeProvider>
             </ErrorBoundary>
           </ConvexProvider>

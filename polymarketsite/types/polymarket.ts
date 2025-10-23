@@ -150,6 +150,15 @@ export interface PriceChange {
   timestamp: number;
 }
 
+export interface LastTradePrice {
+  market: string;
+  asset_id: string;
+  price: string;
+  timestamp: number;
+  side: string;
+  size: string;
+}
+
 // Union Types
 export type PolymarketMessage =
   | TradeMessage

@@ -1044,7 +1044,6 @@ class RealtimeService {
         onMessage: this.handleMessage,
         onConnect: this.handleConnect,
         onStatusChange: this.handleStatusChange,
-        onError: this.handleError,
         autoReconnect: false,
         pingInterval: this.heartbeatInterval,
       });

@@ -175,12 +175,81 @@ class GammaAPIService {
   }
 
   /**
+   * Fetch all events with pagination (for comprehensive search)
+   */
+  async fetchAllEvents(params: Omit<FetchEventsParams, 'limit' | 'offset'> = {}): Promise<GammaEvent[]> {
+    const baseParams = {
+      order: "volume" as const,
+      ascending: false,
+      closed: false,
+      archived: false,
+      active: true,
+      ...params,
+    };
+
+    const cacheKey = `${this.cacheVersion}:all-events:${JSON.stringify(baseParams)}`;
+    
+    // Check cache
+    const cached = this.getCached<GammaEvent[]>(cacheKey);
+    if (cached) {
+      console.log(`[GammaAPI] Using cached all events (${cached.length} events)`);
+      return cached;
+    }
+
+    const fetcher = async () => {
+      const allEvents: GammaEvent[] = [];
+      const pageSize = 100; // Fetch 100 at a time to stay under rate limits
+      let offset = 0;
+      let hasMore = true;
+
+      console.log('[GammaAPI] Fetching all events with pagination...');
+
+      while (hasMore) {
+        const events = await this.fetchEvents({
+          ...baseParams,
+          limit: pageSize,
+          offset,
+        });
+
+        if (events.length === 0) {
+          hasMore = false;
+        } else {
+          allEvents.push(...events);
+          offset += events.length;
+          
+          // If we got fewer results than requested, we've reached the end
+          if (events.length < pageSize) {
+            hasMore = false;
+          }
+
+          // Safety: stop after 500 events (5 pages) to avoid excessive API calls
+          if (allEvents.length >= 500) {
+            console.log(`[GammaAPI] Reached safety limit of 500 events`);
+            hasMore = false;
+          }
+        }
+      }
+
+      console.log(`[GammaAPI] Fetched ${allEvents.length} total events`);
+      this.setCache(cacheKey, allEvents);
+      return allEvents;
+    };
+
+    try {
+      return await cachedFetch(cacheKey, fetcher);
+    } catch (error) {
+      console.warn("[GammaAPI] Error fetching all events:", error);
+      throw error;
+    }
+  }
+
+  /**
    * Fetch events (collections of related markets)
    * Use this to get top markets with all their details
    */
   async fetchEvents(params: FetchEventsParams = {}): Promise<GammaEvent[]> {
     const defaultParams: FetchEventsParams = {
-      limit: 20,
+      limit: 100,
       offset: 0,
       order: "volume",
       ascending: false,
