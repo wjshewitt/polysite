@@ -11,7 +11,10 @@ export function ClobAuth() {
   const clearClobData = usePolymarketStore((state) => state.clearClobData);
 
   const [showAuthForm, setShowAuthForm] = useState(false);
-  const [authMethod, setAuthMethod] = useState<"privateKey" | "apiKey">("privateKey");
+  const [showReadOnlyMessage, setShowReadOnlyMessage] = useState(true);
+  const [authMethod, setAuthMethod] = useState<"privateKey" | "apiKey">(
+    "privateKey",
+  );
   const [privateKey, setPrivateKey] = useState("");
   const [apiKey, setApiKey] = useState("");
   const [apiSecret, setApiSecret] = useState("");
@@ -172,9 +175,20 @@ export function ClobAuth() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-2 h-2 bg-muted-foreground rounded-full" />
-            <div className="font-mono text-xs text-muted-foreground">
-              Read-only mode • Connect to trade
-            </div>
+            {showReadOnlyMessage && (
+              <div className="flex items-center gap-2">
+                <div className="font-mono text-xs text-muted-foreground">
+                  Read-only mode • Connect to trade
+                </div>
+                <button
+                  onClick={() => setShowReadOnlyMessage(false)}
+                  className="text-muted-foreground hover:text-foreground transition-colors text-xs"
+                  title="Dismiss message"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
           </div>
           <button
             onClick={() => setShowAuthForm(true)}
@@ -248,7 +262,8 @@ export function ClobAuth() {
           </div>
           <div className="bg-sell/10 border border-sell px-3 py-2">
             <p className="font-mono text-xs text-sell">
-              ⚠️ Never share your private key. It will be processed securely on the server.
+              ⚠️ Never share your private key. It will be processed securely on
+              the server.
             </p>
           </div>
           <button
@@ -320,7 +335,8 @@ export function ClobAuth() {
       {/* Info */}
       <div className="mt-4 pt-4 border-t border-border">
         <p className="font-mono text-xs text-muted-foreground leading-relaxed">
-          Authentication is required to view and manage your orders. Your credentials are processed securely and never stored in the browser.
+          Authentication is required to view and manage your orders. Your
+          credentials are processed securely and never stored in the browser.
         </p>
       </div>
     </div>

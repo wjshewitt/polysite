@@ -240,7 +240,7 @@ export function WebSocketDebug() {
           {error && (
             <div className="bg-sell/10 border border-sell p-3">
               <div className="text-sell font-mono text-xs font-bold mb-1">
-                ERROR
+                {error.includes("1006") ? "ABNORMAL CLOSURE (1006)" : "ERROR"}
               </div>
               <div className="text-foreground font-mono text-xs">{error}</div>
             </div>

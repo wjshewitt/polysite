@@ -15,16 +15,17 @@ import { toSelectedMarketState } from "@/lib/marketSearch";
 import { TrendingUp, DollarSign, Users } from "lucide-react";
 
 export function TopMarkets() {
-  const [markets, setMarkets] = useState<GammaEvent[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [filter, setFilter] = useState<"volume" | "liquidity">("volume");
-  const [selectedMarket, setSelectedMarket] = useState<GammaEvent | null>(null);
-  const [eventOutcomeMap, setEventOutcomeMap] = useState<
-    Map<string, EventOutcomes>
-  >(new Map());
-  const [modalOpen, setModalOpen] = useState(false);
-  const lastClosedSlugRef = useRef<string | null>(null);
+   const [markets, setMarkets] = useState<GammaEvent[]>([]);
+   const [loading, setLoading] = useState(true);
+   const [error, setError] = useState<string | null>(null);
+   const [filter, setFilter] = useState<"volume" | "liquidity">("volume");
+   const [selectedMarket, setSelectedMarket] = useState<GammaEvent | null>(null);
+   const [eventOutcomeMap, setEventOutcomeMap] = useState<
+     Map<string, EventOutcomes>
+   >(new Map());
+   const [modalOpen, setModalOpen] = useState(false);
+   const isInitialLoadRef = useRef(true);
+   const lastClosedSlugRef = useRef<string | null>(null);
   const searchParams = useSearchParams();
   const router = useRouter();
   const cryptoPrices = usePolymarketStore((state) => state.cryptoPrices);
@@ -76,62 +77,72 @@ export function TopMarkets() {
     }
   }, [searchParams, markets, eventOutcomesFromStore, modalOpen]);
 
-  useEffect(() => {
-    const fetchMarkets = async () => {
-      try {
-        setLoading(true);
-        setError(null);
+   useEffect(() => {
+     const fetchMarkets = async () => {
+       try {
+         if (isInitialLoadRef.current) {
+           setLoading(true);
+         }
+         setError(null);
 
-        console.log(`[TopMarkets] Fetching events with filter: ${filter}`);
+         console.log(`[TopMarkets] Fetching events with filter: ${filter}`);
 
-        const events = await gammaAPI.fetchEvents({
-          limit: 20,
-          order: filter,
-          ascending: false,
-          closed: false,
-          active: true,
-        });
+         const events = await gammaAPI.fetchEvents({
+           limit: 20,
+           order: filter,
+           ascending: false,
+           closed: false,
+           active: true,
+         });
 
-        console.log(`[TopMarkets] Received ${events.length} events`);
-        const nextEventOutcomeMap = new Map<string, EventOutcomes>();
-        events.forEach((event) => {
-          const eventOutcomes = buildEventOutcomes(event);
-          if (eventOutcomes) {
-            nextEventOutcomeMap.set(event.id, eventOutcomes);
-          }
-        });
+         console.log(`[TopMarkets] Received ${events.length} events`);
+         const nextEventOutcomeMap = new Map<string, EventOutcomes>();
+         events.forEach((event) => {
+           const eventOutcomes = buildEventOutcomes(event);
+           if (eventOutcomes) {
+             nextEventOutcomeMap.set(event.id, eventOutcomes);
+           }
+         });
 
-        if (nextEventOutcomeMap.size) {
-          hydrateEventOutcomeSet(Array.from(nextEventOutcomeMap.values()));
-        }
-        setEventOutcomeMap(nextEventOutcomeMap);
-        setMarkets(events);
-      } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : String(err);
-        console.warn(
-          "[TopMarkets] Error fetching markets:",
-          errorMessage,
-          err,
-        );
-        setError(`Failed to load markets: ${errorMessage}`);
+         if (nextEventOutcomeMap.size) {
+           hydrateEventOutcomeSet(Array.from(nextEventOutcomeMap.values()));
+         }
+         setEventOutcomeMap(nextEventOutcomeMap);
+         setMarkets(events);
+       } catch (err) {
+         const errorMessage = err instanceof Error ? err.message : String(err);
+         console.warn(
+           "[TopMarkets] Error fetching markets:",
+           errorMessage,
+           err,
+         );
+         setError(`Failed to load markets: ${errorMessage}`);
 
-        // Set empty array on error to show "no markets" state
-        setMarkets([]);
-      } finally {
-        setLoading(false);
-      }
-    };
+         // On error, only clear markets if initial load; otherwise keep existing data
+         if (isInitialLoadRef.current) {
+           setMarkets([]);
+         }
+       } finally {
+         if (isInitialLoadRef.current) {
+           setLoading(false);
+           isInitialLoadRef.current = false;
+         }
+       }
+     };
 
-    // Initial fetch
-    fetchMarkets();
+     // Reset isInitialLoad when filter changes to show loading on filter switch
+     isInitialLoadRef.current = true;
 
-    // Refresh every 30 seconds
-    const interval = setInterval(fetchMarkets, 30000);
+     // Initial fetch or filter change fetch
+     fetchMarkets();
 
-    return () => {
-      clearInterval(interval);
-    };
-  }, [filter]);
+     // Refresh every 30 seconds (only after initial load)
+     const interval = setInterval(fetchMarkets, 30000);
+
+     return () => {
+       clearInterval(interval);
+     };
+   }, [filter, hydrateEventOutcomeSet]);
 
   const formatNumber = (num: number): string => {
     if (num >= 1000000) {

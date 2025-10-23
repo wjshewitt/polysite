@@ -78,6 +78,9 @@ export const usePolymarketStore = create<PolymarketStore>()(
   error: null,
   lastErrorCode: null,
 
+  // UI Settings
+  useSidebarNavigation: false,
+
   // Data
   trades: [],
   events: [],
@@ -112,6 +115,9 @@ export const usePolymarketStore = create<PolymarketStore>()(
 
   setError: (error) => set({ error, connecting: false, connected: false }),
   setErrorWithCode: (error: string | null, code: number | null) => set({ error, connecting: false, connected: false, lastErrorCode: code }),
+
+  // UI Actions
+  setUseSidebarNavigation: (use) => set({ useSidebarNavigation: use }),
 
   addTrade: (trade) =>
     set((state) => ({

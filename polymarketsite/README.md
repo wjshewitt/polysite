@@ -345,3 +345,5 @@ For issues or questions:
 ---
 
 **Built with ❤️ using Next.js 15, TypeScript, and the Polymarket API**
+
+```typescript

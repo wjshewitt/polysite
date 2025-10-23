@@ -281,6 +281,9 @@ export interface PolymarketStore {
   error: string | null;
   lastErrorCode: number | null;
 
+  // UI Settings
+  useSidebarNavigation: boolean;
+
   // Data
   trades: Trade[];
   events: Event[];
@@ -325,6 +328,9 @@ export interface PolymarketStore {
     tokenId: string,
     updater: (current: NormalizedMarket) => NormalizedMarket,
   ) => void;
+
+  // UI actions
+  setUseSidebarNavigation: (use: boolean) => void;
 
   // CLOB actions
   setClobAuth: (auth: ClobAuthState) => void;

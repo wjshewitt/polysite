@@ -223,7 +223,7 @@ export function WebSocketDiagnostics() {
                 <XCircle className="w-4 h-4 text-sell flex-shrink-0 mt-0.5" />
                 <div className="flex-1">
                   <div className="text-xs font-mono font-bold text-sell mb-1">
-                    CONNECTION ERROR
+                    {error.includes("1006") ? "ABNORMAL CLOSURE (1006)" : "CONNECTION ERROR"}
                   </div>
                   <div className="text-xs font-mono text-sell/80">
                     {error}

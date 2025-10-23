@@ -57,20 +57,22 @@ export function DashboardHeader() {
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="w-full px-2">
-        <div className="flex h-14 items-center gap-4">
-          {/* Left: Logo - Always far left */}
-          <Link
-            href="/dashboard"
-            className="text-lg font-mono font-bold hover:text-primary transition-colors flex-shrink-0"
-          >
-            betterPoly
-          </Link>
+      <div className="w-full">
+        <div className="flex h-14 items-center">
+          {/* Left: Logo - Absolute positioned */}
+          <div className="absolute left-4">
+            <Link
+              href="/dashboard"
+              className="text-lg font-mono font-bold hover:text-primary transition-colors flex-shrink-0"
+            >
+              betterPoly
+            </Link>
+          </div>
 
-          {/* Center: Dynamic content based on market selection */}
-          {selectedMarket ? (
-            /* When market selected: Show market info in center */
-            <div className="flex-1 flex items-center justify-center min-w-0">
+          {/* Center: Dynamic content - Always centered to viewport */}
+          <div className="w-full flex items-center justify-center">
+            {selectedMarket ? (
+              /* When market selected: Show market info in center */
               <div className="flex items-center gap-3 max-w-2xl">
                 <div className="font-mono text-xs text-muted-foreground flex-shrink-0">
                   VIEWING
@@ -94,25 +96,16 @@ export function DashboardHeader() {
                     )}
                 </div>
               </div>
-            </div>
-          ) : (
-            /* When no market selected: Show Market Selector centered */
-            <div className="flex-1 flex items-center justify-center min-w-0 px-4">
-              <div className="w-full max-w-md">
+            ) : (
+              /* When no market selected: Show Market Selector centered */
+              <div className="w-full max-w-md px-4">
                 <MarketSelector />
               </div>
-            </div>
-          )}
-</parameter>
-</invoke>
+            )}
+          </div>
 
-          {/* Divider (only when market selected) */}
-          {selectedMarket && (
-            <div className="w-px h-6 bg-border flex-shrink-0" />
-          )}
-
-          {/* Right: Controls - Always far right */}
-          <div className="flex items-center gap-2 flex-shrink-0">
+          {/* Right: Controls - Absolute positioned */}
+          <div className="absolute right-4 flex items-center gap-2">
             {/* Market Search Button (only when market selected) */}
             {selectedMarket && (
               <div className="flex-shrink-0">

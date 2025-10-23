@@ -11,6 +11,7 @@ import { OrderBook } from "@/components/OrderBook";
 import { LiveStats } from "@/components/LiveStats";
 import { TopMarkets } from "@/components/TopMarkets";
 import { TabNavigation, TabView, SubTabView } from "@/components/TabNavigation";
+import { DashboardSidebar } from "@/components/DashboardSidebar";
 import { OrderbookDepth } from "@/components/OrderbookDepth";
 import { MyOrders } from "@/components/MyOrders";
 import { ClobAuth } from "@/components/ClobAuth";
@@ -26,6 +27,7 @@ function DashboardContent() {
   const [currentTab, setCurrentTab] = useState<TabView>("main");
   const [currentSubTab, setCurrentSubTab] = useState<SubTabView>("all");
   const clobAuth = usePolymarketStore((state) => state.clobAuth);
+  const useSidebarNavigation = usePolymarketStore((state) => state.useSidebarNavigation);
 
   // Settings and diagnostics state from URL
   const settingsOpen = searchParams?.get("settings") === "true";
@@ -74,18 +76,20 @@ function DashboardContent() {
     }
   }, [searchParams]);
 
-  return (
+  const renderDashboardContent = () => (
     <>
-      {/* Consolidated Header with Tab Navigation - Fixed */}
-      <div className="mb-3 flex-shrink-0">
-        <TabNavigation
-          currentTab={currentTab}
-          onTabChange={setCurrentTab}
-          currentSubTab={currentSubTab}
-          onSubTabChange={setCurrentSubTab}
-          isAuthenticated={clobAuth.isAuthenticated}
-        />
-      </div>
+      {/* Tab Navigation - Only show if NOT using sidebar */}
+      {!useSidebarNavigation && (
+        <div className="mb-3 flex-shrink-0">
+          <TabNavigation
+            currentTab={currentTab}
+            onTabChange={setCurrentTab}
+            currentSubTab={currentSubTab}
+            onSubTabChange={setCurrentSubTab}
+            isAuthenticated={clobAuth.isAuthenticated}
+          />
+        </div>
+      )}
 
       {/* CLOB Authentication - Fixed (hide on livedata and marketfocus subtabs) */}
       {!(
@@ -220,6 +224,22 @@ function DashboardContent() {
       </div>
     </>
   );
+
+  return (
+    <>
+      {useSidebarNavigation ? (
+        <DashboardSidebar>
+          <main className="min-h-[calc(100vh-4rem)] flex flex-col p-4 bg-background overflow-y-auto">
+            {renderDashboardContent()}
+          </main>
+        </DashboardSidebar>
+      ) : (
+        <main className="min-h-[calc(100vh-4rem)] flex flex-col p-4 bg-background overflow-y-auto">
+          {renderDashboardContent()}
+        </main>
+      )}
+    </>
+  );
 }
 
 export default function Home() {
@@ -240,21 +260,19 @@ export default function Home() {
 
   return (
     <AppShell>
-      <main className="min-h-[calc(100vh-4rem)] flex flex-col p-4 bg-background overflow-y-auto">
-        <Suspense
-          fallback={
-            <div className="flex-1 flex items-center justify-center">
-              <div className="text-center">
-                <div className="animate-pulse text-muted-foreground font-mono text-sm">
-                  LOADING...
-                </div>
+      <Suspense
+        fallback={
+          <div className="flex-1 flex items-center justify-center min-h-[calc(100vh-4rem)]">
+            <div className="text-center">
+              <div className="animate-pulse text-muted-foreground font-mono text-sm">
+                LOADING...
               </div>
             </div>
-          }
-        >
-          <DashboardContent />
-        </Suspense>
-      </main>
+          </div>
+        }
+      >
+        <DashboardContent />
+      </Suspense>
     </AppShell>
   );
 }

@@ -5,6 +5,7 @@ import { DiagnosticsPanel } from "@/components/DiagnosticsPanel";
 import { WebSocketDebug } from "@/components/WebSocketDebug";
 import { WebSocketDiagnostics } from "@/components/WebSocketDiagnostics";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { usePolymarketStore } from "@/store/usePolymarketStore";
 import {
   Settings as SettingsIcon,
   Activity,
@@ -13,12 +14,17 @@ import {
   Info,
   ChevronDown,
   ChevronRight,
+  Layout,
 } from "lucide-react";
 
 export function Settings() {
   const [connectionExpanded, setConnectionExpanded] = useState(true);
   const [debugExpanded, setDebugExpanded] = useState(false);
   const [detailedExpanded, setDetailedExpanded] = useState(false);
+  const [uiExpanded, setUiExpanded] = useState(false);
+  
+  const useSidebarNavigation = usePolymarketStore((state) => state.useSidebarNavigation);
+  const setUseSidebarNavigation = usePolymarketStore((state) => state.setUseSidebarNavigation);
 
   return (
     <div className="h-full flex flex-col">
@@ -40,6 +46,64 @@ export function Settings() {
       {/* Scrollable Content */}
       <ScrollArea className="flex-1 min-h-0">
         <div className="space-y-6 pr-4">
+          {/* UI Preferences Section */}
+          <section>
+            <div
+              onClick={() => setUiExpanded(!uiExpanded)}
+              className="w-full flex items-center gap-2 mb-3 hover:opacity-80 transition-opacity cursor-pointer"
+            >
+              {uiExpanded ? (
+                <ChevronDown className="w-4 h-4 text-neutral" />
+              ) : (
+                <ChevronRight className="w-4 h-4 text-neutral" />
+              )}
+              <Layout className="w-4 h-4 text-neutral" />
+              <h3 className="text-base sm:text-lg font-mono font-bold text-foreground">
+                UI PREFERENCES
+              </h3>
+            </div>
+            {uiExpanded && (
+              <div className="space-y-4">
+                <div className="panel p-4">
+                  <div className="space-y-4">
+                    {/* Sidebar Navigation Toggle */}
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="font-mono text-sm font-semibold text-foreground mb-1">
+                          Sidebar Navigation
+                        </div>
+                        <div className="font-mono text-xs text-muted-foreground">
+                          Use persistent sidebar navigation instead of top tabs
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => setUseSidebarNavigation(!useSidebarNavigation)}
+                        className={`relative inline-flex h-6 w-11 items-center transition-colors ${
+                          useSidebarNavigation ? "bg-neutral" : "bg-muted"
+                        }`}
+                      >
+                        <span
+                          className={`inline-block h-4 w-4 transform bg-background transition-transform ${
+                            useSidebarNavigation ? "translate-x-6" : "translate-x-1"
+                          }`}
+                        />
+                      </button>
+                    </div>
+
+                    {useSidebarNavigation && (
+                      <div className="p-3 bg-secondary border border-border">
+                        <div className="font-mono text-xs text-muted-foreground">
+                          <strong className="text-foreground">Note:</strong> Sidebar navigation provides persistent context 
+                          and is great for desktop users. You can collapse it anytime for more space.
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </section>
+
           {/* Connection Diagnostics Section */}
           <section>
             <div

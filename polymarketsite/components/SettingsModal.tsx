@@ -19,8 +19,10 @@ import {
   X,
   Moon,
   Sun,
+  Layout,
 } from "lucide-react";
 import { useThemeStore } from "@/store/useThemeStore";
+import { usePolymarketStore } from "@/store/usePolymarketStore";
 
 interface SettingsModalProps {
   open: boolean;
@@ -35,6 +37,9 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
 
   const theme = useThemeStore((state) => state.theme);
   const setTheme = useThemeStore((state) => state.setTheme);
+  
+  const useSidebarNavigation = usePolymarketStore((state) => state.useSidebarNavigation);
+  const setUseSidebarNavigation = usePolymarketStore((state) => state.setUseSidebarNavigation);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -63,6 +68,52 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
         {/* Content */}
         <ScrollArea className="flex-1 min-h-0 max-h-[calc(90vh-120px)]">
           <div className="px-6 py-4 space-y-6">
+            {/* Navigation Settings */}
+            <section>
+              <div className="flex items-center gap-2 mb-4">
+                <Layout className="w-4 h-4 text-neutral" />
+                <h3 className="text-base font-mono font-bold text-foreground">
+                  NAVIGATION
+                </h3>
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex items-center justify-between p-3 bg-card border border-border">
+                  <div className="flex-1">
+                    <div className="text-sm font-mono text-foreground mb-1">
+                      Sidebar Navigation
+                    </div>
+                    <div className="text-xs font-mono text-muted-foreground">
+                      Use persistent sidebar navigation instead of top tabs
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setUseSidebarNavigation(!useSidebarNavigation)}
+                    className={`relative w-12 h-6 transition-colors border ${
+                      useSidebarNavigation
+                        ? "bg-neutral border-neutral"
+                        : "bg-muted border-border"
+                    }`}
+                  >
+                    <div
+                      className={`absolute top-0.5 w-5 h-5 bg-foreground transition-transform ${
+                        useSidebarNavigation ? "right-0.5" : "left-0.5"
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                {useSidebarNavigation && (
+                  <div className="p-3 bg-muted border border-border">
+                    <div className="text-xs font-mono text-muted-foreground">
+                      <span className="text-neutral">Note:</span> Sidebar navigation provides persistent context 
+                      and is great for desktop users. You can collapse it anytime for more space.
+                    </div>
+                  </div>
+                )}
+              </div>
+            </section>
+
             {/* Display Settings */}
             <section>
               <div className="flex items-center gap-2 mb-4">
@@ -330,6 +381,7 @@ export function SettingsModal({ open, onOpenChange }: SettingsModalProps) {
               setRefreshInterval(30);
               setNotifications(false);
               setCompactMode(false);
+              setUseSidebarNavigation(false);
             }}
             className="text-xs font-mono text-muted-foreground hover:text-foreground transition-colors"
           >

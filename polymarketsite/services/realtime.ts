@@ -164,13 +164,38 @@ class RealtimeService {
     // Custom error handler to prevent errors from bubbling up to ErrorBoundary
     const errorMessage = error?.message || error?.toString() || "WebSocket error";
     console.warn("⚠️ WebSocket error (handled):", errorMessage);
-    
+
     // Only log the error, don't throw it
     if (error && typeof error === 'object' && Object.keys(error).length > 0) {
       console.debug("Error details:", error);
     }
-    
+
     // Don't reconnect on every error - let onClose handle it
+  };
+
+  private handleClose = (event: CloseEvent): void => {
+    const code = event.code;
+    const reason = event.reason;
+    console.log(`WebSocket closed: code=${code}, reason="${reason}"`);
+
+    if (code === 1006) {
+      const now = Date.now();
+      const timeSinceConnect = now - this.lastConnectionAttempt;
+      const timeSinceLastMessage = now - this.lastMessageAt;
+
+      // Consider genuine if connected > 30s and recent activity (< 60s silence)
+      const isGenuine = timeSinceConnect > 30000 && timeSinceLastMessage < 60000;
+
+      if (isGenuine) {
+        usePolymarketStore.getState().setError("WebSocket abnormal closure (1006) - genuine connection issue detected");
+        console.error("Genuine 1006 error surfaced");
+      } else {
+        console.warn("Transient 1006 error - reconnecting silently");
+      }
+    }
+
+    // Always trigger disconnect handling
+    this.handleStatusChange(ConnectionStatus.DISCONNECTED);
   };
 
   private handleStatusChange = (status: ConnectionStatus): void => {
